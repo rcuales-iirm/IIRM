@@ -2644,7 +2644,8 @@ Renderers.lesson = function(params){
           '</div></div>'; }},
         {key:'resources', label:'Resources', render:function(){ return '<div class="card">'+renderCommunityResources(Q.community(course.communityId))+'</div>'; }},
         {key:'notes', label:'Notes', render:function(){ return '<div class="card">'+renderLessonNotes(en, lesson)+'</div>'; }},
-        {key:'discussion', label:'Discussion', render:function(){ return '<div class="card">'+renderLessonDiscussionPreview(course)+'</div>'; }}
+        {key:'discussion', label:'Discussion', render:function(){ return '<div class="card">'+renderLessonDiscussionPreview(course)+'</div>'; }},
+        {key:'transcript', label:'Transcript', render:function(){ return '<div class="card">'+renderLessonTranscript(lesson)+'</div>'; }}
       ]))+
       '</div>'+
     '</div>';
@@ -2665,6 +2666,39 @@ function renderLessonDiscussionPreview(course){
   const posts = Q.postsForCommunity(community.id).slice(0,3);
   return '<div class="flex justify-between items-center"><h4 class="mb-0">Recent in '+community.name+'</h4><a class="small" href="#/community/'+community.id+'">Open Full Community</a></div>'+
     '<div class="community-feed mt-sm">'+(posts.length ? posts.map(function(p){ return renderPost(p,false); }).join('') : EmptyState('No discussion yet — be the first to ask a question.'))+'</div>';
+}
+const TRANSCRIPT_BANK = [
+  "Welcome back. In this section we'll walk through the key requirements you need to know for this topic.",
+  "Let's start with the definitions that come up most often on the knowledge check.",
+  "Florida law is specific here, so pay close attention to the timing requirements we're about to cover.",
+  "A common mistake licensees make is assuming a verbal agreement is enough — it isn't, in most cases.",
+  "Here's a real-world example of how this plays out in a typical transaction.",
+  "Notice how the disclosure obligation attaches the moment the licensee becomes aware of the issue.",
+  "This is a good place to pause and think about how this applies to your own day-to-day work.",
+  "Next, let's look at the exceptions — because there are a few, and they matter.",
+  "If you take away one thing from this section, make it this next point.",
+  "We'll close out with a quick recap before you move on to the knowledge check.",
+  "Remember, the standard of care applies to all parties, not just your own client.",
+  "Let's connect this back to the scenario we opened with at the start of the lesson."
+];
+function renderLessonTranscript(lesson){
+  const isSpoken = lesson.type==='video' || lesson.type==='live';
+  if(!isSpoken){
+    return EmptyState('No spoken transcript for this lesson type — see the Lesson tab for the full content.', '&#128221;');
+  }
+  const minsMatch = /(\d+)\s*min/.exec(lesson.duration||'');
+  const totalMin = minsMatch ? Number(minsMatch[1]) : 10;
+  const lineCount = Util.clamp(Math.round(totalMin/1.5), 6, TRANSCRIPT_BANK.length);
+  const step = totalMin / lineCount;
+  const filterKey = 'transcript-'+lesson.id;
+  const q = (STATE.filters[filterKey]||{}).q || '';
+  const lines = TRANSCRIPT_BANK.slice(0,lineCount).map(function(text,i){
+    const t = Math.round(i*step);
+    return {time: String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'), text:text};
+  }).filter(function(l){ return !q || l.text.toLowerCase().indexOf(q.toLowerCase())>-1; });
+  return '<div class="field"><label for="'+filterKey+'" class="sr-only">Search transcript</label><input id="'+filterKey+'" placeholder="Search this transcript…" value="'+Util.escapeHtml(q)+'" data-oninput="setFilter" data-filter-page="'+filterKey+'" data-filter-key="q"></div>'+
+    '<p class="fictional-tag mb-sm">Auto-generated demo transcript — for illustration only.</p>'+
+    (lines.length ? lines.map(function(l){ return '<div class="flex gap-sm" style="margin-bottom:10px;"><span class="pill pill-neutral nowrap" style="align-self:flex-start;">'+l.time+'</span><p class="small mb-0">'+l.text+'</p></div>'; }).join('') : EmptyState('No transcript lines match your search.'));
 }
 function renderLessonBody(en, course, lesson, st){
   if(st==='completed'){
