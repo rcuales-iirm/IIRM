@@ -284,6 +284,7 @@ table{border-collapse:collapse;width:100%;}
 .mt-md{margin-top:20px;}
 .mt-lg{margin-top:32px;}
 .mb-0{margin-bottom:0;}
+.mb-sm{margin-bottom:12px;}
 .muted{color:var(--gray-500);}
 .small{font-size:.875rem;}
 .text-right{text-align:right;}
@@ -519,8 +520,31 @@ table.data-table{min-width:640px;}
 .sidebar-scrim{position:fixed;inset:0;background:rgba(15,39,71,.4);backdrop-filter:blur(4px);z-index:1400;display:none;}
 .sidebar-scrim.open{display:block;}
 
+/* Student mobile: bottom nav bar replaces the full sidebar drawer, per spec */
+.bottom-nav{display:none;}
+@media(max-width:980px){
+  .shell-student .sidebar,.shell-student .sidebar-toggle,.shell-student .sidebar-scrim{display:none !important;}
+  .shell-student .app-content{padding-bottom:92px;}
+  .shell-student .bottom-nav{
+    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:900;
+    background:rgba(248,251,255,.86);backdrop-filter:blur(22px) saturate(140%);-webkit-backdrop-filter:blur(22px) saturate(140%);
+    border-top:1px solid rgba(255,255,255,.8);box-shadow:0 -10px 30px rgba(59,130,246,.10);
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));
+  }
+  .bottom-nav-item{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    padding:8px 2px;border-radius:12px;color:var(--secondary-text);font-size:.68rem;font-weight:650;
+    background:none;border:none;font-family:inherit;cursor:pointer;min-height:48px;
+  }
+  .bottom-nav-item span:first-child{font-size:1.15rem;}
+  .bottom-nav-item.active{color:var(--electric-blue-700);background:rgba(0,209,255,.12);}
+  .bottom-nav-item:hover{text-decoration:none;}
+}
+.more-drawer .panel a,.more-drawer .panel button{font-size:1rem;padding:12px 10px;}
+
 /* course outline (lesson player) — frosted curriculum sidebar */
 .outline-layout{display:grid;grid-template-columns:280px 1fr;gap:22px;align-items:start;}
+.outline-layout > *{min-width:0;}
 .mobile-outline-toggle{display:none;}
 @media(max-width:900px){
   .outline-layout{grid-template-columns:1fr;}
@@ -560,6 +584,7 @@ table.data-table{min-width:640px;}
 
 /* checkout */
 .checkout-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:28px;align-items:start;}
+.checkout-grid > *,.public-footer .cols > *{min-width:0;}
 @media(max-width:900px){.checkout-grid{grid-template-columns:1fr;}}
 .stripe-card{
   border:1px solid rgba(255,255,255,.86);border-radius:var(--radius-md);
@@ -1092,6 +1117,10 @@ const DB = {
     {id:'doc3', studentId:'s2', name:'Broker License Copy.pdf', type:'License', uploadedAt:'2025-10-18'}
   ],
 
+  lessonNotes: [
+    {id:'ln1', studentId:'s1', lessonId:'l2', courseId:'c2', date:'2026-09-14', content:'Remember: clear cooperation applies board-by-board — check the MLS policy for Fort Myers before advising clients.'}
+  ],
+
   studentNotes: [
     {id:'note1', studentId:'s2', author:'Priya Nandakumar', role:'Registrar', date:'2026-09-05', content:'Flagged as at-risk: progress has stalled below 30% for over two weeks. Recommend outreach.'},
     {id:'note2', studentId:'s5', author:'Owen Castellanos', role:'Student Support', date:'2026-09-16', content:'Reported technical issue accessing Module 2 video; also has an access-expiration risk this cycle.'}
@@ -1257,6 +1286,7 @@ const Renderers = {};
 
 function render(){
   STATE.route = parseHash();
+  if(STATE.route.page !== 'community' && STATE.ui.prefillDiscussion){ STATE.ui.prefillDiscussion = null; }
   const root = Util.qs('app-root');
   const def = STATE.session.loggedIn ? ROLE_DEFS[STATE.session.role] : null;
   const active = document.activeElement;
@@ -1411,8 +1441,9 @@ function renderAppShell(route, layout){
 
   const content = (Renderers[route.page] ? Renderers[route.page](route.params) : renderNotFound());
   const roleLabel = ROLE_DEFS[STATE.session.role].label;
+  const isStudentShell = layout === 'student';
 
-  return '<div class="app-shell">'+
+  return '<div class="app-shell '+(isStudentShell?'shell-student':'')+'">'+
     '<div class="sidebar-scrim '+(STATE.ui.sidebarOpen?'open':'')+'" data-action="toggleSidebar"></div>'+
     '<aside class="sidebar '+(STATE.ui.sidebarOpen?'open':'')+'" aria-label="Section navigation">'+
       '<a class="brand" href="#/dashboard" style="text-decoration:none;"><span class="mark">TE</span><span><span>TEAM EDU</span><span class="sub">Team Real Education Solutions, LLC</span></span></a>'+
@@ -1435,8 +1466,48 @@ function renderAppShell(route, layout){
       '</div>'+
       '<div class="app-content" id="main-content" tabindex="-1">'+content+'</div>'+
     '</div>'+
+    (isStudentShell ? renderStudentBottomNav(activeKey) : '')+
   '</div>';
 }
+
+const STUDENT_BOTTOM_NAV = [
+  {key:'dashboard', route:'dashboard', label:'Home', glyph:'&#8962;'},
+  {key:'my-courses', route:'my-courses', label:'Courses', glyph:'&#128218;'},
+  {key:'my-communities', route:'my-communities', label:'Community', glyph:'&#128172;'},
+  {key:'certificates', route:'certificates', label:'Certificates', glyph:'&#127894;'}
+];
+function renderStudentBottomNav(activeKey){
+  const items = STUDENT_BOTTOM_NAV.map(function(it){
+    return '<a href="#/'+it.route+'" class="bottom-nav-item '+(activeKey===it.route?'active':'')+'"><span aria-hidden="true">'+it.glyph+'</span><span>'+it.label+'</span></a>';
+  }).join('');
+  return '<nav class="bottom-nav" aria-label="Primary (mobile)">'+items+
+    '<button class="bottom-nav-item" data-action="toggleMoreDrawer" aria-haspopup="true" aria-expanded="'+(!!STATE.ui.moreDrawerOpen)+'"><span aria-hidden="true">&#9776;</span><span>Account</span></button>'+
+  '</nav>'+
+  '<div class="mobile-drawer more-drawer '+(STATE.ui.moreDrawerOpen?'open':'')+'" aria-hidden="'+(!STATE.ui.moreDrawerOpen)+'">'+
+    '<div class="scrim" data-action="toggleMoreDrawer"></div>'+
+    '<div class="panel" style="right:0;left:auto;top:auto;bottom:0;width:100%;max-width:100%;border-radius:20px 20px 0 0;max-height:80vh;">'+
+      '<div class="flex justify-between items-center" style="margin-bottom:10px;"><strong>More</strong><button class="icon-btn" data-action="toggleMoreDrawer" aria-label="Close menu">&times;</button></div>'+
+      '<a href="#/assignments">&#128221; Assignments</a>'+
+      '<a href="#/quizzes">&#10003; Quizzes &amp; Assessments</a>'+
+      '<a href="#/grades">&#127942; Grades &amp; Feedback</a>'+
+      '<a href="#/credits">&#128202; CE-Credit History</a>'+
+      '<a href="#/calendar">&#128197; Calendar</a>'+
+      '<a href="#/messages">&#128172; Messages</a>'+
+      '<a href="#/notifications">&#128276; Notifications</a>'+
+      '<a href="#/billing">&#128179; Payment &amp; Membership</a>'+
+      '<a href="#/profile">&#128100; Profile &amp; Documents</a>'+
+      '<a href="#/support">&#127908; Support Requests</a>'+
+      '<hr class="divider">'+
+      '<button data-action="logout">Sign Out</button>'+
+    '</div>'+
+  '</div>';
+}
+Renderers['my-communities'] = function(){
+  const s = studentGuardOrRedirect(); if(!s) return renderNotFound();
+  const communities = Q.communitiesForStudent(s.id);
+  return '<div class="page-head"><h1>My Communities</h1></div>'+
+    (communities.length ? '<div class="grid grid-3">'+communities.map(function(c){ return '<div class="card card-hover"><h3 class="mb-0">'+c.name+'</h3><p class="small muted">'+(c.courseId?Q.courseName(c.courseId):'Alumni Network')+'</p><a class="btn btn-primary btn-sm" href="#/community/'+c.id+'">Open</a></div>'; }).join('')+'</div>' : EmptyState('Enroll in a course to join its private community.'));
+};
 
 function renderRoleSwitcher(){
   const options = Object.keys(ROLE_DEFS).map(function(r){
@@ -1629,6 +1700,7 @@ document.addEventListener('input', function(e){
 function afterRender(){ /* reserved hook for post-render side effects (focus, charts) */ }
 
 Object.assign(Actions, {
+  toggleMoreDrawer: function(){ STATE.ui.moreDrawerOpen = !STATE.ui.moreDrawerOpen; render(); },
   setFilter: function(el){
     const page = el.getAttribute('data-filter-page');
     const key = el.getAttribute('data-filter-key');
@@ -1688,6 +1760,7 @@ const Q = {
   cohortsForInstructor: function(instructorId){ return DB.cohorts.filter(function(c){ return c.instructorId===instructorId; }); },
   applicationsForStudent: function(sid){ return DB.applications.filter(function(a){ return a.studentId===sid; }); },
   notesForStudent: function(sid){ return DB.studentNotes.filter(function(n){ return n.studentId===sid; }); },
+  notesForLesson: function(sid,lessonId){ return DB.lessonNotes.filter(function(n){ return n.studentId===sid && n.lessonId===lessonId; }); },
   submissionsForStudent: function(sid){ return DB.submissions.filter(function(s){ return s.studentId===sid; }); },
   attendanceForStudent: function(sid){
     const out = [];
@@ -2559,18 +2632,40 @@ Renderers.lesson = function(params){
   const prev = lessons[idx-1], next = lessons[idx+1];
 
   return '<div class="page-head"><div><p class="muted small mb-0">'+lesson.module+'</p><h1>'+lesson.title+'</h1></div>'+
-    '<a class="btn btn-ghost btn-sm" href="#/course/'+en.id+'">&larr; Course Home</a></div>'+
+    '<div class="flex gap-sm"><button class="btn btn-outline btn-sm" data-action="askCommunity" data-course="'+course.id+'" data-lesson="'+Util.escapeHtml(lesson.title)+'">&#128172; Ask the Community</button><a class="btn btn-ghost btn-sm" href="#/course/'+en.id+'">&larr; Course Home</a></div></div>'+
     '<div class="outline-layout">'+
       renderOutlineNav(course, en, lessonId)+
-      '<div class="card">'+
-        (st==='locked' ? '<div class="banner banner-warn"><span aria-hidden="true">&#128274;</span><span>This lesson is locked. Complete the prior required lesson to unlock it.</span></div>' : renderLessonBody(en, course, lesson, st))+
-        '<div class="flex justify-between mt-md">'+
-          (prev ? ('<a class="btn btn-ghost btn-sm" href="#/lesson/'+en.id+'/'+prev.id+'">&larr; '+prev.title+'</a>') : '<span></span>')+
-          (next ? ('<a class="btn btn-ghost btn-sm" href="#/lesson/'+en.id+'/'+next.id+'">'+next.title+' &rarr;</a>') : '<span></span>')+
-        '</div>'+
+      '<div>'+
+      (st==='locked' ? '<div class="card"><div class="banner banner-warn"><span aria-hidden="true">&#128274;</span><span>This lesson is locked. Complete the prior required lesson to unlock it.</span></div></div>' : Tabs('lesson-'+lessonId, [
+        {key:'lesson', label:'Lesson', render:function(){ return '<div class="card">'+renderLessonBody(en, course, lesson, st)+
+          '<div class="flex justify-between mt-md">'+
+            (prev ? ('<a class="btn btn-ghost btn-sm" href="#/lesson/'+en.id+'/'+prev.id+'">&larr; '+prev.title+'</a>') : '<span></span>')+
+            (next ? ('<a class="btn btn-ghost btn-sm" href="#/lesson/'+en.id+'/'+next.id+'">'+next.title+' &rarr;</a>') : '<span></span>')+
+          '</div></div>'; }},
+        {key:'resources', label:'Resources', render:function(){ return '<div class="card">'+renderCommunityResources(Q.community(course.communityId))+'</div>'; }},
+        {key:'notes', label:'Notes', render:function(){ return '<div class="card">'+renderLessonNotes(en, lesson)+'</div>'; }},
+        {key:'discussion', label:'Discussion', render:function(){ return '<div class="card">'+renderLessonDiscussionPreview(course)+'</div>'; }}
+      ]))+
       '</div>'+
     '</div>';
 };
+function renderLessonNotes(en, lesson){
+  const notes = Q.notesForLesson(en.studentId, lesson.id);
+  return '<p class="small muted">Private notes — only visible to you unless you choose to share one with the course community.</p>'+
+    '<form data-action="addLessonNote" data-lesson="'+lesson.id+'" data-course="'+en.courseId+'" data-en="'+en.id+'">'+
+      '<div class="field mb-0"><label for="note-text-'+lesson.id+'">Add a note for this lesson</label><textarea id="note-text-'+lesson.id+'" name="content" placeholder="Jot down a thought, question, or reminder…"></textarea></div>'+
+      '<button class="btn btn-primary btn-sm mt-sm" type="submit">Save Note</button>'+
+    '</form>'+
+    (notes.length ? notes.map(function(n){ return '<div class="card mt-sm" style="background:rgba(0,209,255,.05);"><div class="flex justify-between"><span class="small muted">'+Util.fmtDate(n.date)+'</span>'+
+      '<span class="flex gap-sm"><button class="link-btn small" data-action="shareLessonNote" data-note="'+n.id+'">Share to Community</button><button class="link-btn small" data-action="deleteLessonNote" data-note="'+n.id+'">Delete</button></span></div>'+
+      '<p class="small mb-0 mt-sm">'+Util.escapeHtml(n.content)+'</p></div>'; }).join('') : EmptyState('No notes yet for this lesson.'));
+}
+function renderLessonDiscussionPreview(course){
+  const community = Q.community(course.communityId);
+  const posts = Q.postsForCommunity(community.id).slice(0,3);
+  return '<div class="flex justify-between items-center"><h4 class="mb-0">Recent in '+community.name+'</h4><a class="small" href="#/community/'+community.id+'">Open Full Community</a></div>'+
+    '<div class="community-feed mt-sm">'+(posts.length ? posts.map(function(p){ return renderPost(p,false); }).join('') : EmptyState('No discussion yet — be the first to ask a question.'))+'</div>';
+}
 function renderLessonBody(en, course, lesson, st){
   if(st==='completed'){
     var doneBanner = '<div class="banner banner-success"><span aria-hidden="true">&#10003;</span><span>Completed.</span></div>';
@@ -2627,6 +2722,34 @@ function renderAssessmentBlock(en, course, lesson, st){
 }
 Object.assign(Actions,{
   noop: function(){},
+  addLessonNote: function(form){
+    if(!validateRequired(form,['content'])) return;
+    const en = Q.enrollment(form.getAttribute('data-en'));
+    DB.lessonNotes.unshift({id:Util.uid('ln'), studentId:en.studentId, lessonId:form.getAttribute('data-lesson'), courseId:form.getAttribute('data-course'), date:new Date().toISOString().slice(0,10), content:form.content.value});
+    Toast.show('success','Note saved','This note is private to you.');
+    render();
+  },
+  deleteLessonNote: function(el){
+    Modal.confirm('Delete this note?','This note will be permanently removed.','Delete Note', function(){
+      DB.lessonNotes = DB.lessonNotes.filter(function(n){ return n.id!==el.getAttribute('data-note'); });
+      render(); Toast.show('success','Note deleted','');
+    }, true);
+  },
+  shareLessonNote: function(el){
+    const note = DB.lessonNotes.find(function(n){ return n.id===el.getAttribute('data-note'); });
+    const course = Q.course(note.courseId);
+    STATE.ui.prefillDiscussion = note.content;
+    STATE.ui.activeTabs['community-'+course.communityId] = 'discussions';
+    navigate('community/'+course.communityId);
+    Toast.show('info','Ready to share','Review your note and click Post to share it with the community.');
+  },
+  askCommunity: function(el){
+    const course = Q.course(el.getAttribute('data-course'));
+    STATE.ui.prefillDiscussion = 'Question about "'+el.getAttribute('data-lesson')+'": ';
+    STATE.ui.activeTabs['community-'+course.communityId] = 'discussions';
+    navigate('community/'+course.communityId);
+    Toast.show('info','Ask away','Finish your question and click Post — nothing is submitted until you confirm.');
+  },
   completeLesson: function(el){
     const enId = el.getAttribute('data-en'), lessonId = el.getAttribute('data-lesson');
     CourseProgress.markComplete(enId, lessonId);
@@ -2773,8 +2896,9 @@ function renderCommunityDiscussions(community, readOnly){
   const search = (STATE.filters['community-search-'+community.id]||{}).q || '';
   let posts = Q.postsForCommunity(community.id);
   if(search) posts = posts.filter(function(p){ return p.content.toLowerCase().indexOf(search.toLowerCase())>-1; });
+  const prefill = STATE.ui.prefillDiscussion || '';
   return '<div class="field"><label for="comm-search" class="sr-only">Search discussions</label><input id="comm-search" placeholder="Search discussions…" value="'+Util.escapeHtml(search)+'" data-oninput="setFilter" data-filter-page="community-search-'+community.id+'" data-filter-key="q"></div>'+
-    (readOnly ? '' : '<form data-action="postToCommunity" data-community="'+community.id+'" class="card" style="margin-bottom:16px;"><div class="field mb-0"><label for="new-post">Start a discussion</label><textarea id="new-post" name="content" placeholder="Ask a question or share something with the class…"></textarea></div><button class="btn btn-primary btn-sm mt-sm" type="submit">Post</button></form>')+
+    (readOnly ? '' : ('<form data-action="postToCommunity" data-community="'+community.id+'" class="card" style="margin-bottom:16px;">'+(prefill?'<div class="banner banner-info mb-sm"><span aria-hidden="true">&#8505;</span><span>Review your text below, then click Post to share it — nothing is submitted automatically.</span></div>':'')+'<div class="field mb-0"><label for="new-post">Start a discussion</label><textarea id="new-post" name="content" placeholder="Ask a question or share something with the class…">'+Util.escapeHtml(prefill)+'</textarea></div><button class="btn btn-primary btn-sm mt-sm" type="submit">Post</button></form>'))+
     '<div class="community-feed">'+(posts.length ? posts.map(function(p){ return renderPost(p, true); }).join('') : EmptyState('No discussions match your search.'))+'</div>';
 }
 function renderPost(post, allowReply){
@@ -2828,6 +2952,7 @@ Object.assign(Actions,{
     const name = STATE.session.loggedIn ? STATE.session.name : 'Guest';
     const role = STATE.session.role==='student' ? 'Student' : (ROLE_DEFS[STATE.session.role]||{}).label || 'Staff';
     DB.communityPosts.unshift({id:Util.uid('post'), communityId:communityId, author:name, authorRole:role, pinned:false, date:new Date().toISOString().slice(0,10), content:form.content.value, replies:[]});
+    STATE.ui.prefillDiscussion = null;
     Toast.show('success','Discussion posted','Your post is now visible to the community.');
     render();
   },
