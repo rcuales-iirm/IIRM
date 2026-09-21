@@ -1010,8 +1010,8 @@ const DB = {
   ],
 
   ceLedger: [
-    {id:'ceh1', studentId:'s1', courseId:'c1', creditHours:3, profession:'Real Estate', earnedDate:'2025-11-20', licenseCycleDeadline:'2027-11-30'},
-    {id:'ceh2', studentId:'s3', courseId:'c5', creditHours:5, profession:'Insurance', earnedDate:'2025-12-19', licenseCycleDeadline:'2026-12-31'}
+    {id:'ceh1', studentId:'s1', courseId:'c1', certificateId:'cert1', creditHours:3, profession:'Real Estate', earnedDate:'2025-11-20', licenseCycleDeadline:'2027-11-30', reportingStatus:'Confirmed'},
+    {id:'ceh2', studentId:'s3', courseId:'c5', certificateId:'cert2', creditHours:5, profession:'Insurance', earnedDate:'2025-12-19', licenseCycleDeadline:'2026-12-31', reportingStatus:'Exported'}
   ],
 
   communities: [
@@ -2528,7 +2528,7 @@ const CertificateEngine = {
     const cert = {id:Util.uid('cert'), certNumber:certNumber, studentId:student.id, courseId:course.id, completionDate:en.completionDate, creditHours:course.creditHours, licenseType:course.certificateLicenseType, instructorId:course.instructorId, providerNumber:'DEMO-PROVIDER-0001', verificationStatus:'verified', verificationUrl:'', revoked:false, issuedAt:new Date().toISOString().slice(0,10), replacementOf:null};
     DB.certificates.push(cert);
     const deadline = new Date(en.completionDate); deadline.setFullYear(deadline.getFullYear()+2);
-    DB.ceLedger.push({id:Util.uid('ceh'), studentId:student.id, courseId:course.id, creditHours:course.creditHours, profession:course.profession, earnedDate:en.completionDate, licenseCycleDeadline:deadline.toISOString().slice(0,10)});
+    DB.ceLedger.push({id:Util.uid('ceh'), studentId:student.id, courseId:course.id, certificateId:cert.id, creditHours:course.creditHours, profession:course.profession, earnedDate:en.completionDate, licenseCycleDeadline:deadline.toISOString().slice(0,10), reportingStatus:'Reporting Not Configured'});
     DB.notifications.unshift({id:Util.uid('nt'), studentId:student.id, title:'Certificate ready', body:'Your certificate for '+course.title+' is ready to download.', date:new Date().toISOString().slice(0,10), read:false, type:'certificate'});
     DB.communications.unshift({id:Util.uid('comm'), studentId:student.id, template:'Certificate Issued', subject:'Your certificate is ready: '+course.title, date:new Date().toISOString().slice(0,10), channel:'email'});
     DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:'System (Completion Engine)', action:'Certificate issued', entity:'Certificate '+cert.id+' / Student '+student.id, details:'Course: '+course.title});
@@ -3250,14 +3250,29 @@ Object.assign(Actions,{
   downloadCert: function(el){ Toast.show('info','Demo download','Your certificate PDF would download here in production.'); }
 });
 
+function reportingStatusPill(status){
+  const map = {
+    'Reporting Not Configured': ['pill-neutral','&#8212;'],
+    'Ready for Review': ['pill-warn','&#8987;'],
+    'Exported': ['pill-info','&#8593;'],
+    'Confirmed': ['pill-success','&#10003;']
+  };
+  const m = map[status] || ['pill-neutral','&#8226;'];
+  return '<span class="pill '+m[0]+'"><span aria-hidden="true">'+m[1]+'</span>'+Util.escapeHtml(status)+'</span>';
+}
 Renderers.credits = function(){
   const s = studentGuardOrRedirect(); if(!s) return renderNotFound();
   const ledger = Q.ceForStudent(s.id);
   const total = ledger.reduce(function(a,c){ return a+c.creditHours; },0);
   return '<div class="page-head"><h1>CE-Credit History</h1></div>'+
   '<div class="stat-card" style="max-width:220px;margin-bottom:16px;"><div class="stat-value">'+total+'</div><div class="stat-label">Total CE hours earned</div></div>'+
-  DataTable({columns:[{key:'course',label:'Course'},{key:'profession',label:'Profession'},{key:'hours',label:'Hours'},{key:'earned',label:'Earned'},{key:'deadline',label:'Cycle Deadline'}], rows:ledger, emptyMessage:'No CE credit earned yet.', renderCell:function(c,r){
-    if(c.key==='course') return Q.courseName(r.courseId); if(c.key==='profession') return r.profession; if(c.key==='hours') return r.creditHours; if(c.key==='earned') return Util.fmtDate(r.earnedDate); if(c.key==='deadline') return Util.fmtDate(r.licenseCycleDeadline);
+  '<p class="fictional-tag mb-md">Reporting status is a demonstration label only — it does not reflect a real submission to any Florida licensing agency.</p>'+
+  DataTable({columns:[{key:'course',label:'Course'},{key:'profession',label:'Profession'},{key:'type',label:'Credit Type'},{key:'hours',label:'Hours'},{key:'earned',label:'Completed'},{key:'cert',label:'Certificate #'},{key:'reporting',label:'Reporting Status'},{key:'verify',label:'Verification'}], rows:ledger, emptyMessage:'No CE credit earned yet.', renderCell:function(c,r){
+    const cert = r.certificateId ? DB.certificates.find(function(x){ return x.id===r.certificateId; }) : null;
+    if(c.key==='course') return Q.courseName(r.courseId); if(c.key==='profession') return r.profession; if(c.key==='type') return Q.course(r.courseId).category; if(c.key==='hours') return r.creditHours; if(c.key==='earned') return Util.fmtDate(r.earnedDate);
+    if(c.key==='cert') return cert ? cert.certNumber : '—';
+    if(c.key==='reporting') return reportingStatusPill(r.reportingStatus||'Reporting Not Configured');
+    if(c.key==='verify') return cert ? StatusPill(cert.revoked?'revoked':'verified') : '<span class="muted small">—</span>';
   }});
 };
 
@@ -4208,20 +4223,47 @@ Object.assign(Actions,{
   }
 });
 
+const REPORTING_STATUS_STEPS = ['Reporting Not Configured','Ready for Review','Exported','Confirmed'];
 Renderers.credits = (function(){ const studentCredits = Renderers.credits; return function(params){
   if(STATE.session.role==='student') return studentCredits(params);
   const f = STATE.filters.creditsAdmin || {};
   let rows = DB.ceLedger.slice();
   if(f.profession && f.profession!=='all') rows = rows.filter(function(r){ return r.profession===f.profession; });
+  if(f.reporting && f.reporting!=='all') rows = rows.filter(function(r){ return (r.reportingStatus||'Reporting Not Configured')===f.reporting; });
   return '<div class="page-head"><h1>CE-Credit Ledger</h1><button class="btn btn-outline btn-sm" data-action="exportCeLedger">Export CSV</button></div>'+
-  '<div class="table-toolbar"><div class="table-filters"><select data-onchange="setFilter" data-filter-page="creditsAdmin" data-filter-key="profession"><option value="all">All professions</option><option value="Real Estate">Real Estate</option><option value="Insurance">Insurance</option><option value="Mortgage">Mortgage</option></select></div></div>'+
-  DataTable({columns:[{key:'student',label:'Student'},{key:'course',label:'Course'},{key:'profession',label:'Profession'},{key:'hours',label:'Hours'},{key:'earned',label:'Earned'},{key:'deadline',label:'Cycle Deadline'}], rows:rows, emptyMessage:'No CE credit recorded yet.', renderCell:function(c,r){
-    if(c.key==='student') return Q.studentName(r.studentId); if(c.key==='course') return Q.courseName(r.courseId); if(c.key==='profession') return r.profession; if(c.key==='hours') return r.creditHours; if(c.key==='earned') return Util.fmtDate(r.earnedDate); if(c.key==='deadline') return Util.fmtDate(r.licenseCycleDeadline);
+  '<p class="fictional-tag mb-md">Reporting status is a demonstration label only — it does not reflect a real submission to any Florida licensing agency.</p>'+
+  '<div class="table-toolbar"><div class="table-filters">'+
+    '<select data-onchange="setFilter" data-filter-page="creditsAdmin" data-filter-key="profession"><option value="all">All professions</option><option value="Real Estate">Real Estate</option><option value="Insurance">Insurance</option><option value="Mortgage">Mortgage</option></select>'+
+    '<select data-onchange="setFilter" data-filter-page="creditsAdmin" data-filter-key="reporting"><option value="all">All reporting statuses</option>'+REPORTING_STATUS_STEPS.map(function(st){ return '<option value="'+st+'" '+(f.reporting===st?'selected':'')+'>'+st+'</option>'; }).join('')+'</select>'+
+  '</div></div>'+
+  DataTable({columns:[{key:'student',label:'Student'},{key:'course',label:'Course'},{key:'type',label:'Credit Type'},{key:'hours',label:'Hours'},{key:'earned',label:'Completed'},{key:'cert',label:'Certificate #'},{key:'reporting',label:'Reporting Status'},{key:'action',label:''}], rows:rows, emptyMessage:'No CE credit recorded yet.', renderCell:function(c,r){
+    const cert = r.certificateId ? DB.certificates.find(function(x){ return x.id===r.certificateId; }) : null;
+    const status = r.reportingStatus||'Reporting Not Configured';
+    const nextIdx = REPORTING_STATUS_STEPS.indexOf(status)+1;
+    if(c.key==='student') return Q.studentName(r.studentId); if(c.key==='course') return Q.courseName(r.courseId); if(c.key==='type') return Q.course(r.courseId).category; if(c.key==='hours') return r.creditHours; if(c.key==='earned') return Util.fmtDate(r.earnedDate);
+    if(c.key==='cert') return cert ? cert.certNumber : '—';
+    if(c.key==='reporting') return reportingStatusPill(status);
+    if(c.key==='action') return nextIdx<REPORTING_STATUS_STEPS.length ? guardedActionButtons([{label:'Advance to "'+REPORTING_STATUS_STEPS[nextIdx]+'"', action:'advanceReportingStatus', id:r.id}]) : '<span class="muted small">Final</span>';
   }});
 }; })();
 Object.assign(Actions,{
+  advanceReportingStatus: function(el){
+    if(!guardWrite())return;
+    const entry = DB.ceLedger.find(function(r){ return r.id===el.getAttribute('data-id'); });
+    const idx = REPORTING_STATUS_STEPS.indexOf(entry.reportingStatus||'Reporting Not Configured');
+    if(idx+1>=REPORTING_STATUS_STEPS.length) return;
+    entry.reportingStatus = REPORTING_STATUS_STEPS[idx+1];
+    DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'CE reporting status updated', entity:'CE Ledger '+entry.id+' / Student '+entry.studentId, details:'Now: '+entry.reportingStatus});
+    Toast.show('success','Reporting status updated', entry.reportingStatus);
+    render();
+  }
+});
+Object.assign(Actions,{
   exportCeLedger: function(){
-    const rows = [['Student','Course','Profession','Hours','Earned Date','Cycle Deadline']].concat(DB.ceLedger.map(function(r){ return [Q.studentName(r.studentId), Q.courseName(r.courseId), r.profession, r.creditHours, r.earnedDate, r.licenseCycleDeadline]; }));
+    const rows = [['Student','Course','Credit Type','Profession','Hours','Earned Date','Cycle Deadline','Certificate #','Reporting Status']].concat(DB.ceLedger.map(function(r){
+      const cert = r.certificateId ? DB.certificates.find(function(x){ return x.id===r.certificateId; }) : null;
+      return [Q.studentName(r.studentId), Q.courseName(r.courseId), Q.course(r.courseId).category, r.profession, r.creditHours, r.earnedDate, r.licenseCycleDeadline, cert?cert.certNumber:'', r.reportingStatus||'Reporting Not Configured'];
+    }));
     Util.downloadCsv('ce-credit-ledger-demo.csv', rows);
     Toast.show('success','CSV exported','ce-credit-ledger-demo.csv downloaded.');
   }
@@ -4442,7 +4484,7 @@ const REPORT_TYPES = {
   completion: {label:'Completion', cols:['Student','Course','Completion Date'], rows:function(){ return DB.enrollments.filter(function(e){return e.status==='completed';}).map(function(e){ return [Q.studentName(e.studentId), Q.courseName(e.courseId), e.completionDate]; }); }},
   attendance: {label:'Attendance', cols:['Cohort','Date','Topic','Present','Absent'], rows:function(){ return DB.attendanceSessions.map(function(s){ const v=Object.values(s.records); return [Q.cohort(s.cohortId)?Q.cohort(s.cohortId).name:'—', s.date, s.topic, v.filter(function(x){return x==='present';}).length, v.filter(function(x){return x==='absent';}).length]; }); }},
   grades: {label:'Grades', cols:['Student','Assignment','Status','Grade'], rows:function(){ return DB.submissions.map(function(s){ const a=DB.assignments.find(function(x){return x.id===s.assignmentId;}); return [Q.studentName(s.studentId), a?a.title:'—', s.status, s.grade||'—']; }); }},
-  credits: {label:'CE Credits', cols:['Student','Course','Profession','Hours','Earned'], rows:function(){ return DB.ceLedger.map(function(r){ return [Q.studentName(r.studentId), Q.courseName(r.courseId), r.profession, r.creditHours, r.earnedDate]; }); }},
+  credits: {label:'CE Credits', cols:['Student','Course','Profession','Hours','Earned','Reporting Status'], rows:function(){ return DB.ceLedger.map(function(r){ return [Q.studentName(r.studentId), Q.courseName(r.courseId), r.profession, r.creditHours, r.earnedDate, r.reportingStatus||'Reporting Not Configured']; }); }},
   certificates: {label:'Certificates', cols:['Certificate #','Student','Course','Status','Issued'], rows:function(){ return DB.certificates.map(function(c){ return [c.certNumber, Q.studentName(c.studentId), Q.courseName(c.courseId), c.revoked?'Revoked':'Verified', c.issuedAt]; }); }},
   instructorActivity: {label:'Instructor Activity', cols:['Instructor','Cohorts','Students'], rows:function(){ return DB.instructors.map(function(i){ const cohorts=Q.cohortsForInstructor(i.id); const students=cohorts.reduce(function(a,c){return a+DB.enrollments.filter(function(e){return e.cohortId===c.id;}).length;},0); return [i.name, cohorts.length, students]; }); }},
   communityEngagement: {label:'Community Engagement', cols:['Community','Posts','Replies'], rows:function(){ return DB.communities.map(function(c){ const posts=Q.postsForCommunity(c.id); const replies=posts.reduce(function(a,p){return a+p.replies.length;},0); return [c.name, posts.length, replies]; }); }},
