@@ -1036,7 +1036,12 @@ const DB = {
     {id:'post5', communityId:'com-alumni', author:'TEAM EDU Staff', authorRole:'Staff', postType:'announcement', pinned:true, date:'2026-01-01', content:'Welcome to the TEAM EDU Alumni Network — a permanent home for graduates to keep networking after individual course communities close.', replies:[]},
     {id:'post6', communityId:'com-c3', author:'Trevor Kim', authorRole:'Student', postType:'study-group', pinned:false, date:'2026-09-17', content:'Starting a study group for the 14-Hour Package — planning to meet online before the October 5th session. Anyone want to compare notes on the contract-law module?', replies:[
       {id:'r3', author:'Devon Whitaker', authorRole:'Student', date:'2026-09-18', content:'Count me in — the contract-law module was dense. What time works for you?'}
-    ]}
+    ]},
+    {id:'post7', communityId:'com-c2', author:'Marisol Vega', authorRole:'Instructor', postType:'poll', pinned:false, date:'2026-09-19', content:'Which ethics topic would you like the next live office hours to focus on?', replies:[], poll:{options:[
+      {id:'opt1', text:'Dual agency disclosure', voters:['s1','Rafael Sandoval']},
+      {id:'opt2', text:'Fair housing edge cases', voters:['Devon Whitaker']},
+      {id:'opt3', text:'Escrow handling', voters:[]}
+    ]}}
   ],
 
   communityEvents: [
@@ -1307,7 +1312,7 @@ const Renderers = {};
 
 function render(){
   STATE.route = parseHash();
-  if(STATE.route.page !== 'community' && STATE.ui.prefillDiscussion){ STATE.ui.prefillDiscussion = null; STATE.ui.prefillPostType = null; }
+  if(STATE.route.page !== 'community' && (STATE.ui.prefillDiscussion || STATE.ui.composerPostType || STATE.ui.composerDraft)){ STATE.ui.prefillDiscussion = null; STATE.ui.prefillPostType = null; STATE.ui.composerPostType = null; STATE.ui.pollOptionCount = 2; STATE.ui.composerDraft = null; }
   const root = Util.qs('app-root');
   const def = STATE.session.loggedIn ? ROLE_DEFS[STATE.session.role] : null;
   const active = document.activeElement;
@@ -3049,33 +3054,53 @@ Renderers.community = function(params){
 };
 function communityPostTypeOptions(selected){
   const canAnnounce = STATE.session.loggedIn && ['super_admin','school_admin','community_moderator','instructor','cohort_leader'].includes(STATE.session.role);
-  const opts = [['discussion','Discussion'],['question','Question'],['study-group','Study Group']];
+  const opts = [['discussion','Discussion'],['question','Question'],['study-group','Study Group'],['poll','Poll']];
   if(canAnnounce) opts.push(['announcement','Announcement']);
   return opts.map(function(o){ return '<option value="'+o[0]+'" '+(selected===o[0]?'selected':'')+'>'+o[1]+'</option>'; }).join('');
+}
+function getComposerDraft(communityId, prefill){
+  if(!STATE.ui.composerDraft || STATE.ui.composerDraft.communityId!==communityId){
+    STATE.ui.composerDraft = {communityId:communityId, content:prefill||'', opts:['','','','','','']};
+  }
+  return STATE.ui.composerDraft;
 }
 function renderCommunityAllPosts(community, readOnly){
   const search = (STATE.filters['community-search-'+community.id]||{}).q || '';
   let posts = Q.postsForCommunity(community.id);
   if(search) posts = posts.filter(function(p){ return p.content.toLowerCase().indexOf(search.toLowerCase())>-1; });
   const prefill = STATE.ui.prefillDiscussion || '';
+  const composerType = STATE.ui.composerPostType || STATE.ui.prefillPostType || 'discussion';
+  const pollOptCount = Util.clamp(STATE.ui.pollOptionCount || 2, 2, 6);
+  const draft = getComposerDraft(community.id, prefill);
   return '<div class="field"><label for="comm-search" class="sr-only">Search posts</label><input id="comm-search" placeholder="Search posts…" value="'+Util.escapeHtml(search)+'" data-oninput="setFilter" data-filter-page="community-search-'+community.id+'" data-filter-key="q"></div>'+
     (readOnly ? '' : ('<form data-action="postToCommunity" data-community="'+community.id+'" class="card" style="margin-bottom:16px;">'+(prefill?'<div class="banner banner-info mb-sm"><span aria-hidden="true">&#8505;</span><span>Review your text below, then click Post to share it — nothing is submitted automatically.</span></div>':'')+
-      '<div class="grid grid-2"><div class="field mb-0"><label for="new-post">Share with the community</label><textarea id="new-post" name="content" placeholder="Ask a question, share an update, or start a study group…">'+Util.escapeHtml(prefill)+'</textarea></div>'+
-      '<div class="field mb-0"><label for="new-post-type">Post type</label><select id="new-post-type" name="postType">'+communityPostTypeOptions(STATE.ui.prefillPostType)+'</select></div></div>'+
-      '<button class="btn btn-primary btn-sm mt-sm" type="submit">Post</button></form>'))+
+      '<div class="grid grid-2"><div class="field mb-0"><label for="new-post">'+(composerType==='poll'?'Poll question':'Share with the community')+'</label><textarea id="new-post" name="content" data-oninput="updateComposerDraft" data-field="content" placeholder="'+(composerType==='poll'?'What would you like to ask the community?':'Ask a question, share an update, or start a study group…')+'">'+Util.escapeHtml(draft.content)+'</textarea></div>'+
+      '<div class="field mb-0"><label for="new-post-type">Post type</label><select id="new-post-type" name="postType" data-onchange="updateComposerType">'+communityPostTypeOptions(composerType)+'</select></div></div>'+
+      (composerType==='poll' ? renderPollOptionInputs(pollOptCount, draft) : '')+
+      '<button class="btn btn-primary btn-sm mt-sm" type="submit">'+(composerType==='poll'?'Create Poll':'Post')+'</button></form>'))+
     '<div class="community-feed">'+(posts.length ? posts.map(function(p){ return renderPost(p, true); }).join('') : EmptyState('No posts match your search.'))+'</div>';
+}
+function renderPollOptionInputs(count, draft){
+  let html = '<fieldset class="mt-sm"><legend>Poll options</legend>';
+  for(let i=0;i<count;i++){
+    html += '<div class="field"><label for="poll-opt-'+i+'">Option '+(i+1)+'</label><input id="poll-opt-'+i+'" name="poll_opt_'+i+'" data-oninput="updateComposerDraft" data-field="opt_'+i+'" value="'+Util.escapeHtml(draft.opts[i]||'')+'" placeholder="Option '+(i+1)+' text"></div>';
+  }
+  html += (count<6 ? '<button type="button" class="btn btn-ghost btn-sm" data-action="addPollOption">+ Add another option</button>' : '')+'</fieldset>';
+  return html;
 }
 function renderCommunityByType(community, type, emptyMsg){
   const posts = Q.postsForCommunity(community.id).filter(function(p){ return (p.postType||'discussion')===type; });
   return '<div class="community-feed">'+(posts.length ? posts.map(function(p){ return renderPost(p, true); }).join('') : EmptyState(emptyMsg))+'</div>';
 }
-const POST_TYPE_LABEL = {question:'Question', announcement:'Announcement', 'study-group':'Study Group', discussion:'Discussion'};
+const POST_TYPE_LABEL = {question:'Question', announcement:'Announcement', 'study-group':'Study Group', discussion:'Discussion', poll:'Poll'};
+const POST_TYPE_PILL = {announcement:'pill-gold', question:'pill-info', 'study-group':'pill-success', poll:'pill-warn'};
 function renderPost(post, allowReply){
   const canModerate = STATE.session.loggedIn && ['super_admin','school_admin','community_moderator','instructor','cohort_leader'].includes(STATE.session.role);
   const typeLabel = POST_TYPE_LABEL[post.postType||'discussion'];
   return '<div class="post">'+
-    '<div class="post-head"><div class="avatar">'+Util.initials(post.author)+'</div><div><strong>'+post.author+'</strong> <span class="pill pill-neutral">'+post.authorRole+'</span> '+(post.postType&&post.postType!=='discussion'?('<span class="pill '+(post.postType==='announcement'?'pill-gold':(post.postType==='question'?'pill-info':'pill-success'))+'">'+typeLabel+'</span>'):'')+'<div class="small muted">'+Util.fmtDate(post.date)+(post.pinned?' &middot; 📌 Pinned':'')+'</div></div></div>'+
+    '<div class="post-head"><div class="avatar">'+Util.initials(post.author)+'</div><div><strong>'+post.author+'</strong> <span class="pill pill-neutral">'+post.authorRole+'</span> '+(post.postType&&post.postType!=='discussion'?('<span class="pill '+(POST_TYPE_PILL[post.postType]||'pill-neutral')+'">'+typeLabel+'</span>'):'')+'<div class="small muted">'+Util.fmtDate(post.date)+(post.pinned?' &middot; 📌 Pinned':'')+'</div></div></div>'+
     '<p>'+Util.escapeHtml(post.content)+'</p>'+
+    (post.postType==='poll' && post.poll ? renderPollBody(post) : '')+
     '<div class="flex gap-sm">'+
       (allowReply ? ('<button class="link-btn" data-action="toggleReplyBox" data-post="'+post.id+'">Reply</button>') : '')+
       '<button class="link-btn" data-action="reportPost" data-post="'+post.id+'">Report</button>'+
@@ -3083,6 +3108,25 @@ function renderPost(post, allowReply){
     '</div>'+
     (post.replies.length ? post.replies.map(function(r){ return '<div class="reply"><div class="flex items-center gap-xs"><div class="avatar sm">'+Util.initials(r.author)+'</div><strong class="small">'+r.author+'</strong><span class="small muted">'+Util.fmtDate(r.date)+'</span></div><p class="small mb-0">'+Util.escapeHtml(r.content)+'</p></div>'; }).join('') : '')+
     (allowReply && STATE.ui.openReplyBox===post.id ? ('<form data-action="replyToPost" data-post="'+post.id+'" class="mt-sm"><textarea name="content" placeholder="Write a reply…" style="min-height:60px;"></textarea><button class="btn btn-primary btn-sm mt-sm" type="submit">Reply</button></form>') : '')+
+  '</div>';
+}
+function pollVoterKey(){ return STATE.session.loggedIn ? (STATE.session.studentId || STATE.session.staffId || STATE.session.name) : null; }
+function renderPollBody(post){
+  const voter = pollVoterKey();
+  const totalVotes = post.poll.options.reduce(function(a,o){ return a+o.voters.length; },0);
+  const myChoice = voter ? post.poll.options.find(function(o){ return o.voters.indexOf(voter)>-1; }) : null;
+  return '<div class="card" style="background:rgba(244,167,44,.06);margin:10px 0;">'+
+    post.poll.options.map(function(o){
+      const pct = totalVotes ? Math.round((o.voters.length/totalVotes)*100) : 0;
+      const mine = myChoice && myChoice.id===o.id;
+      return '<div style="margin-bottom:10px;">'+
+        '<button type="button" class="btn '+(mine?'btn-outline':'btn-ghost')+' btn-sm w-full" style="justify-content:space-between;" data-action="voteOnPoll" data-post="'+post.id+'" data-option="'+o.id+'">'+
+          '<span>'+(mine?'✓ ':'')+Util.escapeHtml(o.text)+'</span><span class="small muted">'+o.voters.length+' vote'+(o.voters.length===1?'':'s')+' &middot; '+pct+'%</span>'+
+        '</button>'+
+        '<div class="progress-track mt-sm"><div class="progress-fill'+(mine?' gold':'')+'" style="width:'+pct+'%"></div></div>'+
+      '</div>';
+    }).join('')+
+    '<p class="small muted mb-0">'+totalVotes+' total vote'+(totalVotes===1?'':'s')+(voter?(myChoice?' — click a different option to change your vote.':' — click an option to vote.'):' — sign in to vote.')+'</p>'+
   '</div>';
 }
 function renderCommunityMembers(community){
@@ -3116,14 +3160,40 @@ Object.assign(Actions,{
     Toast.show('success','Reply posted','Your reply was added to the discussion.');
     render();
   },
+  updateComposerType: function(el){ STATE.ui.composerPostType = el.value; if(el.value!=='poll') STATE.ui.pollOptionCount = 2; render(); },
+  updateComposerDraft: function(el){
+    const draft = STATE.ui.composerDraft || getComposerDraft(el.closest('form').getAttribute('data-community'));
+    const field = el.getAttribute('data-field');
+    if(field==='content') draft.content = el.value; else draft.opts[Number(field.split('_')[1])] = el.value;
+  },
+  addPollOption: function(){ STATE.ui.pollOptionCount = Util.clamp((STATE.ui.pollOptionCount||2)+1, 2, 6); render(); },
+  voteOnPoll: function(el){
+    const post = DB.communityPosts.find(function(p){ return p.id===el.getAttribute('data-post'); });
+    const optionId = el.getAttribute('data-option');
+    const voter = pollVoterKey();
+    if(!voter){ Toast.show('warn','Sign in to vote','You must be signed in to vote in this poll.'); return; }
+    post.poll.options.forEach(function(o){ const i=o.voters.indexOf(voter); if(i>-1) o.voters.splice(i,1); });
+    post.poll.options.find(function(o){ return o.id===optionId; }).voters.push(voter);
+    render();
+  },
   postToCommunity: function(form){
     if(!validateRequired(form,['content'])) return;
     const communityId = form.getAttribute('data-community');
     const name = STATE.session.loggedIn ? STATE.session.name : 'Guest';
     const role = STATE.session.role==='student' ? 'Student' : (ROLE_DEFS[STATE.session.role]||{}).label || 'Staff';
-    DB.communityPosts.unshift({id:Util.uid('post'), communityId:communityId, author:name, authorRole:role, postType:form.postType?form.postType.value:'discussion', pinned:false, date:new Date().toISOString().slice(0,10), content:form.content.value, replies:[]});
-    STATE.ui.prefillDiscussion = null; STATE.ui.prefillPostType = null;
-    Toast.show('success','Discussion posted','Your post is now visible to the community.');
+    const postType = form.postType ? form.postType.value : 'discussion';
+    let poll = null;
+    if(postType==='poll'){
+      const texts = [];
+      for(let i=0;i<6;i++){ const inp = form.querySelector('[name="poll_opt_'+i+'"]'); if(inp && inp.value.trim()) texts.push(inp.value.trim()); }
+      if(texts.length<2){ Toast.show('error','Add at least two options','A poll needs at least two answer options.'); return; }
+      poll = {options: texts.map(function(t){ return {id:Util.uid('opt'), text:t, voters:[]}; })};
+    }
+    const post = {id:Util.uid('post'), communityId:communityId, author:name, authorRole:role, postType:postType, pinned:false, date:new Date().toISOString().slice(0,10), content:form.content.value, replies:[]};
+    if(poll) post.poll = poll;
+    DB.communityPosts.unshift(post);
+    STATE.ui.prefillDiscussion = null; STATE.ui.prefillPostType = null; STATE.ui.composerPostType = null; STATE.ui.pollOptionCount = 2; STATE.ui.composerDraft = null;
+    Toast.show('success', postType==='poll'?'Poll created':'Discussion posted', postType==='poll'?'Members can now vote on your poll.':'Your post is now visible to the community.');
     render();
   },
   reportPost: function(){ Toast.show('warn','Content reported','A moderator will review this post.'); },
@@ -4478,44 +4548,67 @@ Object.assign(Actions,{
 /* =====================================================================
    SECTION: REPORTING & CSV EXPORT
    ===================================================================== */
+function reportFilterMatch(f, attrs){
+  if(f.course && f.course!=='all' && attrs.courseId!==undefined && attrs.courseId!==f.course) return false;
+  if(f.program && f.program!=='all'){
+    const prog = Q.program(f.program);
+    if(prog && attrs.courseId!==undefined && prog.courseIds.indexOf(attrs.courseId)===-1) return false;
+  }
+  if(f.cohort && f.cohort!=='all' && attrs.cohortId!==undefined && attrs.cohortId!==f.cohort) return false;
+  if(f.instructor && f.instructor!=='all' && attrs.instructorId!==undefined && attrs.instructorId!==f.instructor) return false;
+  if(f.profession && f.profession!=='all' && attrs.profession!==undefined && attrs.profession!==f.profession) return false;
+  if(f.status && f.status!=='all' && attrs.status!==undefined && attrs.status!==f.status) return false;
+  if(f.delivery && f.delivery!=='all' && attrs.delivery!==undefined && attrs.delivery!==f.delivery) return false;
+  if(f.from && attrs.date && attrs.date<f.from) return false;
+  if(f.to && attrs.date && attrs.date>f.to) return false;
+  return true;
+}
 const REPORT_TYPES = {
-  enrollment: {label:'Enrollment', cols:['Student','Course','Status','Enrolled','Access Through'], rows:function(){ return DB.enrollments.map(function(e){ return [Q.studentName(e.studentId), Q.courseName(e.courseId), e.status, e.enrolledAt, e.accessExpiresAt]; }); }},
-  progress: {label:'Course Progress', cols:['Student','Course','Progress %'], rows:function(){ return DB.enrollments.map(function(e){ return [Q.studentName(e.studentId), Q.courseName(e.courseId), e.progressPct]; }); }},
-  completion: {label:'Completion', cols:['Student','Course','Completion Date'], rows:function(){ return DB.enrollments.filter(function(e){return e.status==='completed';}).map(function(e){ return [Q.studentName(e.studentId), Q.courseName(e.courseId), e.completionDate]; }); }},
-  attendance: {label:'Attendance', cols:['Cohort','Date','Topic','Present','Absent'], rows:function(){ return DB.attendanceSessions.map(function(s){ const v=Object.values(s.records); return [Q.cohort(s.cohortId)?Q.cohort(s.cohortId).name:'—', s.date, s.topic, v.filter(function(x){return x==='present';}).length, v.filter(function(x){return x==='absent';}).length]; }); }},
-  grades: {label:'Grades', cols:['Student','Assignment','Status','Grade'], rows:function(){ return DB.submissions.map(function(s){ const a=DB.assignments.find(function(x){return x.id===s.assignmentId;}); return [Q.studentName(s.studentId), a?a.title:'—', s.status, s.grade||'—']; }); }},
-  credits: {label:'CE Credits', cols:['Student','Course','Profession','Hours','Earned','Reporting Status'], rows:function(){ return DB.ceLedger.map(function(r){ return [Q.studentName(r.studentId), Q.courseName(r.courseId), r.profession, r.creditHours, r.earnedDate, r.reportingStatus||'Reporting Not Configured']; }); }},
-  certificates: {label:'Certificates', cols:['Certificate #','Student','Course','Status','Issued'], rows:function(){ return DB.certificates.map(function(c){ return [c.certNumber, Q.studentName(c.studentId), Q.courseName(c.courseId), c.revoked?'Revoked':'Verified', c.issuedAt]; }); }},
-  instructorActivity: {label:'Instructor Activity', cols:['Instructor','Cohorts','Students'], rows:function(){ return DB.instructors.map(function(i){ const cohorts=Q.cohortsForInstructor(i.id); const students=cohorts.reduce(function(a,c){return a+DB.enrollments.filter(function(e){return e.cohortId===c.id;}).length;},0); return [i.name, cohorts.length, students]; }); }},
-  communityEngagement: {label:'Community Engagement', cols:['Community','Posts','Replies'], rows:function(){ return DB.communities.map(function(c){ const posts=Q.postsForCommunity(c.id); const replies=posts.reduce(function(a,p){return a+p.replies.length;},0); return [c.name, posts.length, replies]; }); }},
-  revenue: {label:'Revenue', cols:['Course','Succeeded Revenue','Transaction Count'], rows:function(){ return DB.courses.map(function(c){ const txs=DB.transactions.filter(function(t){return t.courseId===c.id && t.status==='succeeded';}); return [c.title, txs.reduce(function(a,t){return a+t.amount;},0).toFixed(2), txs.length]; }); }},
-  outstanding: {label:'Outstanding Balances', cols:['Student','Course','Amount','Status'], rows:function(){ return DB.transactions.filter(function(t){return t.status==='failed'||t.status==='pending';}).map(function(t){ return [Q.studentName(t.studentId), Q.courseName(t.courseId), t.amount, t.status]; }); }},
-  refunds: {label:'Refunds', cols:['Student','Course','Amount','Date'], rows:function(){ return DB.refunds.map(function(r){ return [Q.studentName(r.studentId), Q.courseName(r.courseId), r.amount, r.date]; }); }},
-  risk: {label:'Student Risk', cols:['Student','Status','Risk Reasons'], rows:function(){ return DB.students.filter(function(s){return s.riskFlag;}).map(function(s){ return [s.firstName+' '+s.lastName, s.status, riskReasons(s, Q.enrollmentsForStudent(s.id)).join('; ')]; }); }},
-  regulatory: {label:'Regulatory (CE Completion)', cols:['Student','License Type','Course','Hours','Completion Date','Demo Provider #'], rows:function(){ return DB.certificates.map(function(c){ return [Q.studentName(c.studentId), c.licenseType, Q.courseName(c.courseId), c.creditHours, c.completionDate, c.providerNumber]; }); }},
-  audit: {label:'Audit Activity', cols:['When','Actor','Action','Entity','Details'], rows:function(){ return DB.auditLog.map(function(a){ return [a.date, a.actor, a.action, a.entity, a.details]; }); }}
+  enrollment: {label:'Enrollment', cols:['Student','Course','Status','Enrolled','Access Through'], rows:function(f){ return DB.enrollments.filter(function(e){ const c=Q.course(e.courseId); return reportFilterMatch(f,{courseId:e.courseId, cohortId:e.cohortId, instructorId:c.instructorId, profession:c.profession, status:e.status, delivery:c.deliveryMethod, date:e.enrolledAt}); }).map(function(e){ return [Q.studentName(e.studentId), Q.courseName(e.courseId), e.status, e.enrolledAt, e.accessExpiresAt]; }); }},
+  progress: {label:'Course Progress', cols:['Student','Course','Progress %'], rows:function(f){ return DB.enrollments.filter(function(e){ const c=Q.course(e.courseId); return reportFilterMatch(f,{courseId:e.courseId, cohortId:e.cohortId, instructorId:c.instructorId, profession:c.profession, status:e.status, delivery:c.deliveryMethod, date:e.enrolledAt}); }).map(function(e){ return [Q.studentName(e.studentId), Q.courseName(e.courseId), e.progressPct]; }); }},
+  completion: {label:'Completion', cols:['Student','Course','Completion Date'], rows:function(f){ return DB.enrollments.filter(function(e){ if(e.status!=='completed') return false; const c=Q.course(e.courseId); return reportFilterMatch(f,{courseId:e.courseId, cohortId:e.cohortId, instructorId:c.instructorId, profession:c.profession, delivery:c.deliveryMethod, date:e.completionDate}); }).map(function(e){ return [Q.studentName(e.studentId), Q.courseName(e.courseId), e.completionDate]; }); }},
+  attendance: {label:'Attendance', cols:['Cohort','Date','Topic','Present','Absent'], rows:function(f){ return DB.attendanceSessions.filter(function(s){ const ch=Q.cohort(s.cohortId); return reportFilterMatch(f,{courseId:ch?ch.courseId:undefined, cohortId:s.cohortId, instructorId:ch?ch.instructorId:undefined, delivery:ch?ch.deliveryMethod:undefined, date:s.date}); }).map(function(s){ const v=Object.values(s.records); return [Q.cohort(s.cohortId)?Q.cohort(s.cohortId).name:'—', s.date, s.topic, v.filter(function(x){return x==='present';}).length, v.filter(function(x){return x==='absent';}).length]; }); }},
+  grades: {label:'Grades', cols:['Student','Assignment','Status','Grade'], rows:function(f){ return DB.submissions.filter(function(s){ const a=DB.assignments.find(function(x){return x.id===s.assignmentId;}); const c=a?Q.course(a.courseId):null; return reportFilterMatch(f,{courseId:a?a.courseId:undefined, instructorId:c?c.instructorId:undefined, profession:c?c.profession:undefined, status:s.status, date:s.submittedAt}); }).map(function(s){ const a=DB.assignments.find(function(x){return x.id===s.assignmentId;}); return [Q.studentName(s.studentId), a?a.title:'—', s.status, s.grade||'—']; }); }},
+  credits: {label:'CE Credits', cols:['Student','Course','Profession','Hours','Earned','Reporting Status'], rows:function(f){ return DB.ceLedger.filter(function(r){ const c=Q.course(r.courseId); return reportFilterMatch(f,{courseId:r.courseId, instructorId:c.instructorId, profession:r.profession, delivery:c.deliveryMethod, date:r.earnedDate}); }).map(function(r){ return [Q.studentName(r.studentId), Q.courseName(r.courseId), r.profession, r.creditHours, r.earnedDate, r.reportingStatus||'Reporting Not Configured']; }); }},
+  certificates: {label:'Certificates', cols:['Certificate #','Student','Course','Status','Issued'], rows:function(f){ return DB.certificates.filter(function(c){ const course=Q.course(c.courseId); return reportFilterMatch(f,{courseId:c.courseId, instructorId:course.instructorId, profession:course.profession, delivery:course.deliveryMethod, status:c.revoked?'revoked':'verified', date:c.issuedAt}); }).map(function(c){ return [c.certNumber, Q.studentName(c.studentId), Q.courseName(c.courseId), c.revoked?'Revoked':'Verified', c.issuedAt]; }); }},
+  instructorActivity: {label:'Instructor Activity', cols:['Instructor','Cohorts','Students'], rows:function(f){ return DB.instructors.filter(function(i){ return reportFilterMatch(f,{instructorId:i.id}); }).map(function(i){ const cohorts=Q.cohortsForInstructor(i.id); const students=cohorts.reduce(function(a,c){return a+DB.enrollments.filter(function(e){return e.cohortId===c.id;}).length;},0); return [i.name, cohorts.length, students]; }); }},
+  communityEngagement: {label:'Community Engagement', cols:['Community','Posts','Replies'], rows:function(f){ return DB.communities.filter(function(c){ return reportFilterMatch(f,{courseId:c.courseId}); }).map(function(c){ const posts=Q.postsForCommunity(c.id); const replies=posts.reduce(function(a,p){return a+p.replies.length;},0); return [c.name, posts.length, replies]; }); }},
+  revenue: {label:'Revenue', cols:['Course','Succeeded Revenue','Transaction Count'], rows:function(f){ return DB.courses.filter(function(c){ return reportFilterMatch(f,{courseId:c.id, instructorId:c.instructorId, profession:c.profession, delivery:c.deliveryMethod}); }).map(function(c){ const txs=DB.transactions.filter(function(t){return t.courseId===c.id && t.status==='succeeded' && (!f.from||t.date>=f.from) && (!f.to||t.date<=f.to);}); return [c.title, txs.reduce(function(a,t){return a+t.amount;},0).toFixed(2), txs.length]; }); }},
+  outstanding: {label:'Outstanding Balances', cols:['Student','Course','Amount','Status'], rows:function(f){ return DB.transactions.filter(function(t){ if(t.status!=='failed'&&t.status!=='pending') return false; const c=Q.course(t.courseId); return reportFilterMatch(f,{courseId:t.courseId, instructorId:c.instructorId, profession:c.profession, status:t.status, date:t.date}); }).map(function(t){ return [Q.studentName(t.studentId), Q.courseName(t.courseId), t.amount, t.status]; }); }},
+  refunds: {label:'Refunds', cols:['Student','Course','Amount','Date'], rows:function(f){ return DB.refunds.filter(function(r){ const c=Q.course(r.courseId); return reportFilterMatch(f,{courseId:r.courseId, instructorId:c.instructorId, profession:c.profession, date:r.date}); }).map(function(r){ return [Q.studentName(r.studentId), Q.courseName(r.courseId), r.amount, r.date]; }); }},
+  risk: {label:'Student Risk', cols:['Student','Status','Risk Reasons'], rows:function(f){ return DB.students.filter(function(s){ return s.riskFlag && reportFilterMatch(f,{status:s.status}); }).map(function(s){ return [s.firstName+' '+s.lastName, s.status, riskReasons(s, Q.enrollmentsForStudent(s.id)).join('; ')]; }); }},
+  regulatory: {label:'Regulatory (CE Completion)', cols:['Student','License Type','Course','Hours','Completion Date','Demo Provider #'], rows:function(f){ return DB.certificates.filter(function(c){ const course=Q.course(c.courseId); return reportFilterMatch(f,{courseId:c.courseId, instructorId:course.instructorId, profession:course.profession, delivery:course.deliveryMethod, date:c.completionDate}); }).map(function(c){ return [Q.studentName(c.studentId), c.licenseType, Q.courseName(c.courseId), c.creditHours, c.completionDate, c.providerNumber]; }); }},
+  audit: {label:'Audit Activity', cols:['When','Actor','Action','Entity','Details'], rows:function(f){ return DB.auditLog.filter(function(a){ return reportFilterMatch(f,{date:a.date.slice(0,10)}); }).map(function(a){ return [a.date, a.actor, a.action, a.entity, a.details]; }); }}
 };
 Renderers.reports = function(){
   const f = STATE.filters.reports || {};
   const type = f.type || 'enrollment';
   const def = REPORT_TYPES[type];
-  const rows = def.rows();
+  const rows = def.rows(f);
+  const activeFilterCount = ['course','program','cohort','instructor','profession','status','delivery','from','to'].filter(function(k){ return f[k] && f[k]!=='all'; }).length;
   return '<div class="page-head"><h1>Reports</h1></div>'+
   '<div class="card mb-md"><div class="table-filters">'+
     '<div class="field mb-0"><label for="rep-type">Report</label><select id="rep-type" data-onchange="setFilter" data-filter-page="reports" data-filter-key="type">'+Object.keys(REPORT_TYPES).map(function(k){ return '<option value="'+k+'" '+(type===k?'selected':'')+'>'+REPORT_TYPES[k].label+'</option>'; }).join('')+'</select></div>'+
+    '<div class="field mb-0"><label for="rep-program">Program</label><select id="rep-program" data-onchange="setFilter" data-filter-page="reports" data-filter-key="program"><option value="all">All programs</option>'+DB.programs.map(function(p){return '<option value="'+p.id+'" '+(f.program===p.id?'selected':'')+'>'+p.name+'</option>';}).join('')+'</select></div>'+
     '<div class="field mb-0"><label for="rep-course">Course</label><select id="rep-course" data-onchange="setFilter" data-filter-page="reports" data-filter-key="course"><option value="all">All courses</option>'+DB.courses.map(function(c){return '<option value="'+c.id+'" '+(f.course===c.id?'selected':'')+'>'+c.title+'</option>';}).join('')+'</select></div>'+
+    '<div class="field mb-0"><label for="rep-cohort">Cohort</label><select id="rep-cohort" data-onchange="setFilter" data-filter-page="reports" data-filter-key="cohort"><option value="all">All cohorts</option>'+DB.cohorts.map(function(c){return '<option value="'+c.id+'" '+(f.cohort===c.id?'selected':'')+'>'+c.name+'</option>';}).join('')+'</select></div>'+
+    '<div class="field mb-0"><label for="rep-instructor">Instructor</label><select id="rep-instructor" data-onchange="setFilter" data-filter-page="reports" data-filter-key="instructor"><option value="all">All instructors</option>'+DB.instructors.map(function(i){return '<option value="'+i.id+'" '+(f.instructor===i.id?'selected':'')+'>'+i.name+'</option>';}).join('')+'</select></div>'+
+    '<div class="field mb-0"><label for="rep-profession">Profession</label><select id="rep-profession" data-onchange="setFilter" data-filter-page="reports" data-filter-key="profession"><option value="all">All professions</option><option value="Real Estate" '+(f.profession==='Real Estate'?'selected':'')+'>Real Estate</option><option value="Insurance" '+(f.profession==='Insurance'?'selected':'')+'>Insurance</option><option value="Mortgage" '+(f.profession==='Mortgage'?'selected':'')+'>Mortgage</option></select></div>'+
+    '<div class="field mb-0"><label for="rep-status">Status</label><select id="rep-status" data-onchange="setFilter" data-filter-page="reports" data-filter-key="status"><option value="all">All statuses</option><option value="active" '+(f.status==='active'?'selected':'')+'>Active</option><option value="completed" '+(f.status==='completed'?'selected':'')+'>Completed</option><option value="expired" '+(f.status==='expired'?'selected':'')+'>Expired</option><option value="withdrawn" '+(f.status==='withdrawn'?'selected':'')+'>Withdrawn</option></select></div>'+
+    '<div class="field mb-0"><label for="rep-delivery">Delivery</label><select id="rep-delivery" data-onchange="setFilter" data-filter-page="reports" data-filter-key="delivery"><option value="all">All delivery methods</option><option value="self-paced" '+(f.delivery==='self-paced'?'selected':'')+'>Self-Paced</option><option value="live-online" '+(f.delivery==='live-online'?'selected':'')+'>Live Online</option><option value="in-person" '+(f.delivery==='in-person'?'selected':'')+'>In-Person</option><option value="hybrid" '+(f.delivery==='hybrid'?'selected':'')+'>Hybrid</option></select></div>'+
     '<div class="field mb-0"><label for="rep-from">From</label><input id="rep-from" type="date" data-onchange="setFilter" data-filter-page="reports" data-filter-key="from" value="'+(f.from||'')+'"></div>'+
     '<div class="field mb-0"><label for="rep-to">To</label><input id="rep-to" type="date" data-onchange="setFilter" data-filter-page="reports" data-filter-key="to" value="'+(f.to||'')+'"></div>'+
+    (activeFilterCount ? '<button class="btn btn-ghost btn-sm" data-action="clearFilters" data-filter-page="reports">Clear filters</button>' : '')+
     '<button class="btn btn-primary btn-sm" data-action="exportReport">Export CSV</button>'+
   '</div></div>'+
-  '<p class="muted small">'+rows.length+' row'+(rows.length===1?'':'s')+'. Course/date filters are applied on export in this demo when the report includes those columns.</p>'+
-  (rows.length ? DataTable({columns:def.cols.map(function(c){return {key:c,label:c};}), rows:rows.map(function(r){ const o={}; def.cols.forEach(function(c,i){o[c]=r[i];}); return o; }), renderCell:function(c,row){ return Util.escapeHtml(row[c.key]); }}) : EmptyState('No data for this report yet.'));
+  '<p class="muted small">'+rows.length+' row'+(rows.length===1?'':'s')+(activeFilterCount?(' matching '+activeFilterCount+' active filter'+(activeFilterCount===1?'':'s')):'')+'. Not every filter applies to every report — only columns the data actually has are filtered.</p>'+
+  (rows.length ? DataTable({columns:def.cols.map(function(c){return {key:c,label:c};}), rows:rows.map(function(r){ const o={}; def.cols.forEach(function(c,i){o[c]=r[i];}); return o; }), renderCell:function(c,row){ return Util.escapeHtml(row[c.key]); }}) : EmptyState('No data matches these filters.'));
 };
 Object.assign(Actions,{
   exportReport: function(){
     const f = STATE.filters.reports || {};
     const def = REPORT_TYPES[f.type || 'enrollment'];
-    const rows = [def.cols].concat(def.rows());
+    const rows = [def.cols].concat(def.rows(f));
     Util.downloadCsv((f.type||'enrollment')+'-report-demo.csv', rows);
     DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Report exported', entity:'Report: '+def.label, details:'CSV export'});
     Toast.show('success','Report exported', (f.type||'enrollment')+'-report-demo.csv downloaded.');
