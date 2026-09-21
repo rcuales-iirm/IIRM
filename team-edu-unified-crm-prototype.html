@@ -977,18 +977,18 @@ const DB = {
   },
 
   transactions: [
-    {id:'tx1', studentId:'s1', courseId:'c1', amount:39, status:'succeeded', method:'Visa •••• 4242 (demo)', date:'2025-11-02', couponCode:null, paymentPlanId:null, notes:''},
-    {id:'tx2', studentId:'s1', courseId:'c2', amount:39, status:'succeeded', method:'Visa •••• 4242 (demo)', date:'2026-08-01', couponCode:'WELCOME10', paymentPlanId:null, notes:''},
-    {id:'tx3', studentId:'s1', courseId:'c4', amount:35, status:'succeeded', method:'Visa •••• 4242 (demo)', date:'2026-09-01', couponCode:null, paymentPlanId:null, notes:''},
-    {id:'tx4', studentId:'s2', courseId:'c3', amount:79, status:'succeeded', method:'Mastercard •••• 4444 (demo)', date:'2026-09-02', couponCode:null, paymentPlanId:'pp1', notes:'Payment plan: 1 of 2 installments collected.'},
-    {id:'tx5', studentId:'s5', courseId:'c1', amount:39, status:'failed', method:'Visa •••• 0002 (demo decline)', date:'2026-09-12', couponCode:null, paymentPlanId:null, notes:'Card declined — insufficient funds (demo).'},
-    {id:'tx6', studentId:'s6', courseId:'c3', amount:79, status:'pending', method:'ACH Bank Transfer (demo)', date:'2026-09-10', couponCode:null, paymentPlanId:null, notes:'Awaiting bank confirmation (demo).'},
-    {id:'tx7', studentId:'s7', courseId:'c2', amount:39, status:'refunded', method:'Visa •••• 4242 (demo)', date:'2026-05-02', couponCode:null, paymentPlanId:null, notes:'Refunded — course access revoked at student request.'},
-    {id:'tx8', studentId:'s12', courseId:'c2', amount:39, status:'succeeded', method:'Amex •••• 1005 (demo)', date:'2026-09-08', couponCode:null, paymentPlanId:null, notes:''},
-    {id:'tx9', studentId:'s3', courseId:'c5', amount:55, status:'succeeded', method:'Visa •••• 4242 (demo)', date:'2025-12-01', couponCode:null, paymentPlanId:null, notes:''},
-    {id:'tx10', studentId:'s8', courseId:'c5', amount:55, status:'succeeded', method:'Discover •••• 1117 (demo)', date:'2026-07-01', couponCode:'FLPRO15', paymentPlanId:null, notes:''},
-    {id:'tx11', studentId:'s4', courseId:'c6', amount:45, status:'succeeded', method:'Visa •••• 4242 (demo)', date:'2026-08-15', couponCode:null, paymentPlanId:null, notes:''},
-    {id:'tx12', studentId:'s13', courseId:'c3', amount:79, status:'succeeded', method:'Mastercard •••• 4444 (demo)', date:'2026-09-01', couponCode:null, paymentPlanId:'pp2', notes:'Payment plan: 1 of 3 installments collected.'}
+    {id:'tx1', studentId:'s1', courseId:'c1', amount:39, status:'succeeded', method:'Visa •••• 4242 (demo)', date:'2025-11-02', couponCode:null, paymentPlanId:null, notes:'', reconciliationStatus:'Matched'},
+    {id:'tx2', studentId:'s1', courseId:'c2', amount:39, status:'succeeded', method:'Visa •••• 4242 (demo)', date:'2026-08-01', couponCode:'WELCOME10', paymentPlanId:null, notes:'', reconciliationStatus:'Matched'},
+    {id:'tx3', studentId:'s1', courseId:'c4', amount:35, status:'succeeded', method:'Visa •••• 4242 (demo)', date:'2026-09-01', couponCode:null, paymentPlanId:null, notes:'', reconciliationStatus:'Matched'},
+    {id:'tx4', studentId:'s2', courseId:'c3', amount:79, status:'succeeded', method:'Mastercard •••• 4444 (demo)', date:'2026-09-02', couponCode:null, paymentPlanId:'pp1', notes:'Payment plan: 1 of 2 installments collected.', reconciliationStatus:'Matched'},
+    {id:'tx5', studentId:'s5', courseId:'c1', amount:39, status:'failed', method:'Visa •••• 0002 (demo decline)', date:'2026-09-12', couponCode:null, paymentPlanId:null, notes:'Card declined — insufficient funds (demo).', reconciliationStatus:'Not Applicable'},
+    {id:'tx6', studentId:'s6', courseId:'c3', amount:79, status:'pending', method:'ACH Bank Transfer (demo)', date:'2026-09-10', couponCode:null, paymentPlanId:null, notes:'Awaiting bank confirmation (demo).', reconciliationStatus:'Not Applicable'},
+    {id:'tx7', studentId:'s7', courseId:'c2', amount:39, status:'refunded', method:'Visa •••• 4242 (demo)', date:'2026-05-02', couponCode:null, paymentPlanId:null, notes:'Refunded — course access revoked at student request.', reconciliationStatus:'Flagged for Review'},
+    {id:'tx8', studentId:'s12', courseId:'c2', amount:39, status:'succeeded', method:'Amex •••• 1005 (demo)', date:'2026-09-08', couponCode:null, paymentPlanId:null, notes:'', reconciliationStatus:'Unreconciled'},
+    {id:'tx9', studentId:'s3', courseId:'c5', amount:55, status:'succeeded', method:'Visa •••• 4242 (demo)', date:'2025-12-01', couponCode:null, paymentPlanId:null, notes:'', reconciliationStatus:'Matched'},
+    {id:'tx10', studentId:'s8', courseId:'c5', amount:55, status:'succeeded', method:'Discover •••• 1117 (demo)', date:'2026-07-01', couponCode:'FLPRO15', paymentPlanId:null, notes:'', reconciliationStatus:'Matched'},
+    {id:'tx11', studentId:'s4', courseId:'c6', amount:45, status:'succeeded', method:'Visa •••• 4242 (demo)', date:'2026-08-15', couponCode:null, paymentPlanId:null, notes:'', reconciliationStatus:'Matched'},
+    {id:'tx12', studentId:'s13', courseId:'c3', amount:79, status:'succeeded', method:'Mastercard •••• 4444 (demo)', date:'2026-09-01', couponCode:null, paymentPlanId:'pp2', notes:'Payment plan: 1 of 3 installments collected.', reconciliationStatus:'Unreconciled'}
   ],
 
   paymentPlans: [
@@ -1626,6 +1626,7 @@ function StatusPill(status){
     inactive:['pill-neutral','&#9679;','Inactive'], prospect:['pill-info','&#9733;','Prospect'],
     published:['pill-success','&#10003;','Published'], draft:['pill-neutral','&#9998;','Draft'],
     verified:['pill-success','&#10003;','Verified'], revoked:['pill-danger','&#9888;','Revoked'], superseded:['pill-neutral','&#8635;','Superseded'],
+    'Matched':['pill-success','&#10003;','Matched'], 'Unreconciled':['pill-warn','&#8987;','Unreconciled'], 'Flagged for Review':['pill-danger','&#9888;','Flagged for Review'], 'Not Applicable':['pill-neutral','&#8226;','N/A'],
     submitted:['pill-info','&#8593;','Submitted'], graded:['pill-success','&#10003;','Graded'],
     locked:['pill-neutral','&#128274;','Locked'], present:['pill-success','&#10003;','Present'],
     absent:['pill-danger','&#9888;','Absent'], excused:['pill-warn','&#9888;','Excused']
@@ -4471,14 +4472,21 @@ Renderers.transactions = function(){
   const f = STATE.filters.transactions || {};
   let rows = DB.transactions.slice();
   if(f.status && f.status!=='all') rows = rows.filter(function(t){ return t.status===f.status; });
+  if(f.reconciliation && f.reconciliation!=='all') rows = rows.filter(function(t){ return (t.reconciliationStatus||'Unreconciled')===f.reconciliation; });
   return '<div class="page-head"><h1>Transactions</h1></div>'+
-  '<div class="table-toolbar"><div class="table-filters"><select data-onchange="setFilter" data-filter-page="transactions" data-filter-key="status"><option value="all">All statuses</option><option value="succeeded" '+(f.status==='succeeded'?'selected':'')+'>Succeeded</option><option value="failed" '+(f.status==='failed'?'selected':'')+'>Failed</option><option value="pending" '+(f.status==='pending'?'selected':'')+'>Pending</option><option value="refunded" '+(f.status==='refunded'?'selected':'')+'>Refunded</option></select></div></div>'+
-  DataTable({columns:[{key:'student',label:'Student'},{key:'course',label:'Course'},{key:'amount',label:'Amount'},{key:'status',label:'Status'},{key:'date',label:'Date'},{key:'action',label:''}], rows:rows, emptyMessage:'No transactions match this filter.', renderCell:function(c,t){
+  '<div class="table-toolbar"><div class="table-filters"><select data-onchange="setFilter" data-filter-page="transactions" data-filter-key="status"><option value="all">All statuses</option><option value="succeeded" '+(f.status==='succeeded'?'selected':'')+'>Succeeded</option><option value="failed" '+(f.status==='failed'?'selected':'')+'>Failed</option><option value="pending" '+(f.status==='pending'?'selected':'')+'>Pending</option><option value="refunded" '+(f.status==='refunded'?'selected':'')+'>Refunded</option></select>'+
+  '<select data-onchange="setFilter" data-filter-page="transactions" data-filter-key="reconciliation"><option value="all">All reconciliation statuses</option><option value="Matched" '+(f.reconciliation==='Matched'?'selected':'')+'>Matched</option><option value="Unreconciled" '+(f.reconciliation==='Unreconciled'?'selected':'')+'>Unreconciled</option><option value="Flagged for Review" '+(f.reconciliation==='Flagged for Review'?'selected':'')+'>Flagged for Review</option><option value="Not Applicable" '+(f.reconciliation==='Not Applicable'?'selected':'')+'>Not Applicable</option></select>'+
+  '</div></div>'+
+  DataTable({columns:[{key:'student',label:'Student'},{key:'course',label:'Course'},{key:'amount',label:'Amount'},{key:'status',label:'Status'},{key:'reconciliation',label:'Reconciliation'},{key:'date',label:'Date'},{key:'action',label:''}], rows:rows, emptyMessage:'No transactions match this filter.', renderCell:function(c,t){
+    const reconStatus = t.reconciliationStatus||'Unreconciled';
     if(c.key==='student') return can('students') ? ('<a href="#/students/'+t.studentId+'">'+Q.studentName(t.studentId)+'</a>') : Q.studentName(t.studentId); if(c.key==='course') return Q.courseName(t.courseId); if(c.key==='amount') return Util.fmtMoney(t.amount); if(c.key==='status') return StatusPill(t.status); if(c.key==='date') return Util.fmtDate(t.date);
+    if(c.key==='reconciliation') return StatusPill(reconStatus);
     if(c.key==='action'){
       const opts=[];
       if(t.status==='failed') opts.push({label:'Record Resolution', action:'openResolveModal', id:t.id});
       if(t.status==='succeeded') opts.push({label:'Refund', action:'openRefundModal', id:t.id});
+      if(reconStatus!=='Not Applicable' && reconStatus!=='Matched') opts.push({label:'Mark Matched', action:'markReconciled', id:t.id});
+      if(reconStatus==='Unreconciled') opts.push({label:'Flag for Review', action:'flagReconciliation', id:t.id});
       return guardedActionButtons(opts);
     }
   }});
@@ -4499,7 +4507,7 @@ Object.assign(Actions,{
     const tx = DB.transactions.find(function(t){ return t.id===form.getAttribute('data-tx'); });
     const outcome = form.outcome.value;
     tx.notes = (tx.notes?tx.notes+' | ':'') + 'Resolution ('+outcome+'): '+form.note.value;
-    if(outcome==='retried'){ tx.status='succeeded'; }
+    if(outcome==='retried'){ tx.status='succeeded'; tx.reconciliationStatus='Unreconciled'; }
     DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Failed payment resolution recorded', entity:'Transaction '+tx.id, details:outcome});
     Modal.close(); Toast.show('success','Resolution recorded',''); render();
   },
@@ -4518,7 +4526,7 @@ Object.assign(Actions,{
     if(!validateRequired(form,['amount','reason'])) return;
     const tx = DB.transactions.find(function(t){ return t.id===form.getAttribute('data-tx'); });
     const amount = Number(form.amount.value);
-    tx.status='refunded';
+    tx.status='refunded'; tx.reconciliationStatus='Flagged for Review';
     DB.refunds.unshift({id:Util.uid('rf'), transactionId:tx.id, studentId:tx.studentId, courseId:tx.courseId, amount:amount, reason:form.reason.value, processedBy:STATE.session.staffId||'staff', date:new Date().toISOString().slice(0,10), status:'completed'});
     if(form.revokeAccess.checked){
       const en = DB.enrollments.find(function(e){ return e.studentId===tx.studentId && e.courseId===tx.courseId; });
@@ -4528,6 +4536,20 @@ Object.assign(Actions,{
     DB.notifications.unshift({id:Util.uid('nt'), studentId:tx.studentId, title:'Refund processed', body:Util.fmtMoney(amount)+' has been refunded for '+Q.courseName(tx.courseId)+'.', date:new Date().toISOString().slice(0,10), read:false, type:'billing'});
     DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Refund processed', entity:'Transaction '+tx.id, details:Util.fmtMoney(amount)});
     Modal.close(); Toast.show('success','Refund processed',''); render();
+  },
+  markReconciled: function(el){
+    if(!guardWrite())return;
+    const tx = DB.transactions.find(function(t){ return t.id===el.getAttribute('data-id'); });
+    tx.reconciliationStatus = 'Matched';
+    DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Transaction reconciled', entity:'Transaction '+tx.id, details:'Matched against processor/bank record.'});
+    Toast.show('success','Marked as matched',''); render();
+  },
+  flagReconciliation: function(el){
+    if(!guardWrite())return;
+    const tx = DB.transactions.find(function(t){ return t.id===el.getAttribute('data-id'); });
+    tx.reconciliationStatus = 'Flagged for Review';
+    DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Transaction flagged for reconciliation review', entity:'Transaction '+tx.id, details:''});
+    Toast.show('success','Flagged for review',''); render();
   }
 });
 
