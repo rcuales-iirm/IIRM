@@ -903,6 +903,10 @@ const DB = {
     {id:'ch7', courseId:'c1', name:'Core Law — In-Person, Orlando HQ', deliveryMethod:'in-person', startDate:'2026-10-02', endDate:'2026-10-02', capacity:30, instructorId:'i1', location:'TEAM EDU Orlando Training Center, Suite 220', meetingLink:null, communityId:'com-c1', status:'open'},
     {id:'ch8', courseId:'c3', name:'14-Hour Package — Winter Cohort', deliveryMethod:'hybrid', startDate:'2026-12-01', endDate:'2027-01-15', capacity:80, instructorId:'i1', location:'TEAM EDU Tampa Training Center', meetingLink:'https://meet.teamedu-demo.org/14hr-winter', communityId:'com-c3', status:'open'}
   ],
+  waitlist: [
+    {id:'wl1', cohortId:'ch4', studentId:'s13', requestedAt:'2026-09-10', status:'waiting'},
+    {id:'wl2', cohortId:'ch4', studentId:'s14', requestedAt:'2026-09-12', status:'waiting'}
+  ],
 
   students: [
     {id:'s1', firstName:'Alicia', lastName:'Bennett', email:'alicia.bennett@example-demo.com', phone:'4075551201', licenseType:'Real Estate Sales Associate', status:'active', assignedStaff:'st3', riskFlag:false, createdAt:'2025-11-02', address:'118 Palmetto Ave, Orlando, FL', dob:'1988-04-12'},
@@ -1621,7 +1625,7 @@ function StatusPill(status){
     qualified:['pill-success','&#10003;','Qualified'], approved:['pill-success','&#10003;','Approved'],
     inactive:['pill-neutral','&#9679;','Inactive'], prospect:['pill-info','&#9733;','Prospect'],
     published:['pill-success','&#10003;','Published'], draft:['pill-neutral','&#9998;','Draft'],
-    verified:['pill-success','&#10003;','Verified'], revoked:['pill-danger','&#9888;','Revoked'],
+    verified:['pill-success','&#10003;','Verified'], revoked:['pill-danger','&#9888;','Revoked'], superseded:['pill-neutral','&#8635;','Superseded'],
     submitted:['pill-info','&#8593;','Submitted'], graded:['pill-success','&#10003;','Graded'],
     locked:['pill-neutral','&#128274;','Locked'], present:['pill-success','&#10003;','Present'],
     absent:['pill-danger','&#9888;','Absent'], excused:['pill-warn','&#9888;','Excused']
@@ -2448,12 +2452,19 @@ Renderers['verify-certificate'] = function(){
 function renderCertVerifyResult(cert){
   const course = Q.course(cert.courseId);
   const student = Q.student(cert.studentId);
-  return '<div class="banner '+(cert.revoked?'banner-danger':'banner-success')+' mt-sm">'+
-    '<span aria-hidden="true">'+(cert.revoked?'&#9888;':'&#10003;')+'</span>'+
-    '<span><strong>'+(cert.revoked?'This certificate has been revoked.':'This certificate is valid.')+'</strong>'+
+  const supersededBy = DB.certificates.find(function(x){ return x.replacementOf===cert.id; });
+  const statusLabel = cert.revoked ? 'Revoked' : (supersededBy ? 'Superseded' : 'Verified');
+  const bannerClass = cert.revoked ? 'banner-danger' : (supersededBy ? 'banner-warn' : 'banner-success');
+  const icon = cert.revoked ? '&#9888;' : (supersededBy ? '&#8635;' : '&#10003;');
+  const headline = cert.revoked ? 'This certificate has been revoked.' : (supersededBy ? 'This certificate has been reissued under a new certificate number.' : 'This certificate is valid.');
+  return '<div class="banner '+bannerClass+' mt-sm">'+
+    '<span aria-hidden="true">'+icon+'</span>'+
+    '<span><strong>'+headline+'</strong>'+
+    (supersededBy ? '<p class="small mt-sm mb-0">Current certificate number: <strong>'+supersededBy.certNumber+'</strong></p>' : '')+
+    (cert.replacementOf ? '<p class="small mt-sm mb-0">Replaces certificate '+(DB.certificates.find(function(x){return x.id===cert.replacementOf;})||{certNumber:'—'}).certNumber+'.</p>' : '')+
     '<div class="kv mt-sm"><dt>Recipient</dt><dd>'+student.firstName+' '+student.lastName+'</dd>'+
     '<dt>Course</dt><dd>'+course.title+'</dd><dt>Completion date</dt><dd>'+Util.fmtDate(cert.completionDate)+'</dd>'+
-    '<dt>Credit hours</dt><dd>'+cert.creditHours+'</dd><dt>Status</dt><dd>'+(cert.revoked?'Revoked':'Verified')+'</dd></div></span></div>';
+    '<dt>Credit hours</dt><dd>'+cert.creditHours+'</dd><dt>Status</dt><dd>'+statusLabel+'</dd></div></span></div>';
 }
 
 /* =====================================================================
@@ -3463,18 +3474,34 @@ Renderers['class'] = function(params){
   return '<div class="page-head"><div><p class="muted small mb-0">'+course.title+'</p><h1>'+cohort.name+'</h1></div>'+
     '<a class="btn btn-teal btn-sm" href="#/community/'+cohort.communityId+'">Open Class Community</a></div>'+
   Tabs('class-'+cohort.id, [
-    {key:'roster', label:'Roster', render:function(){ return renderRoster(roster); }},
+    {key:'roster', label:'Roster', render:function(){ return renderRoster(cohort, course, roster); }},
     {key:'attendance', label:'Attendance', render:function(){ return renderAttendanceTab(cohort, roster); }},
     {key:'grading', label:'Grading', render:function(){ return renderGradingTab(course, roster); }}
   ]);
 };
-function renderRoster(roster){
-  return DataTable({columns:[{key:'name',label:'Student'},{key:'status',label:'Status'},{key:'progress',label:'Progress'},{key:'action',label:''}], rows:roster, emptyMessage:'No students enrolled in this section yet.', renderCell:function(c,r){
+function renderRoster(cohort, course, roster){
+  const seats = Q.seatsRemaining(cohort);
+  const waitlist = DB.waitlist.filter(function(w){ return w.cohortId===cohort.id && w.status==='waiting'; });
+  const otherCohorts = DB.cohorts.filter(function(c){ return c.courseId===cohort.courseId && c.id!==cohort.id; });
+  return '<p class="small muted mb-sm">'+seats+' of '+cohort.capacity+' seats remaining.</p>'+
+  DataTable({columns:[{key:'name',label:'Student'},{key:'status',label:'Status'},{key:'progress',label:'Progress'},{key:'action',label:''}], rows:roster, emptyMessage:'No students enrolled in this section yet.', renderCell:function(c,r){
     if(c.key==='name') return r.student.firstName+' '+r.student.lastName;
     if(c.key==='status') return StatusPill(r.en.status);
     if(c.key==='progress') return r.en.progressPct+'%';
-    if(c.key==='action') return can('students') ? ('<a class="link-btn" href="#/students/'+r.student.id+'">View Record</a>') : '';
-  }});
+    if(c.key==='action'){
+      const opts=[];
+      if(can('students')) opts.push('<a class="link-btn" href="#/students/'+r.student.id+'">View Record</a>');
+      if(!isReadOnly() && r.en.status==='active' && otherCohorts.length) opts.push('<button class="link-btn" data-action="openTransferCohortModal" data-en="'+r.en.id+'">Transfer</button>');
+      return opts.join(' &middot; ');
+    }
+  }})+
+  '<div class="card mt-md"><div class="flex justify-between items-center"><h3 class="mb-0">Waitlist</h3>'+(isReadOnly()?'':'<button class="btn btn-outline btn-sm" data-action="openAddWaitlistModal" data-cohort="'+cohort.id+'">Add to Waitlist</button>')+'</div>'+
+  DataTable({columns:[{key:'name',label:'Student'},{key:'requested',label:'Requested'},{key:'action',label:''}], rows:waitlist, emptyMessage:'No students on the waitlist for this section.', renderCell:function(c,w){
+    const student = Q.student(w.studentId);
+    if(c.key==='name') return student.firstName+' '+student.lastName;
+    if(c.key==='requested') return Util.fmtDate(w.requestedAt);
+    if(c.key==='action') return isReadOnly() ? '' : guardedActionButtons([seats>0?{label:'Enroll from Waitlist', action:'enrollFromWaitlist', id:w.id}:null, {label:'Remove', action:'removeFromWaitlist', id:w.id}]);
+  }})+'</div>';
 }
 function renderAttendanceTab(cohort, roster){
   const sessions = DB.attendanceSessions.filter(function(a){ return a.cohortId===cohort.id; });
@@ -3535,6 +3562,72 @@ Object.assign(Actions,{
     DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Assignment graded', entity:'Submission '+sub.id, details:sub.grade});
     Modal.close(); Toast.show('success','Grade submitted','The student has been notified.');
     render();
+  }
+});
+Object.assign(Actions,{
+  openTransferCohortModal: function(el){
+    if(!guardWrite())return;
+    const en = Q.enrollment(el.getAttribute('data-en'));
+    const course = Q.course(en.courseId);
+    const options = DB.cohorts.filter(function(c){ return c.courseId===course.id && c.id!==en.cohortId; });
+    Modal.open('<div class="modal-header"><h3 style="margin:0">Transfer Student</h3><button class="icon-btn" data-action="closeModal" aria-label="Close">&times;</button></div>'+
+      '<form data-action="saveTransferCohort" data-en="'+en.id+'"><div class="modal-body">'+
+      '<p class="small muted">'+Q.studentName(en.studentId)+' — '+course.title+'</p>'+
+      '<div class="field"><label for="tr-cohort">Transfer to</label><select id="tr-cohort" name="cohortId">'+options.map(function(c){ return '<option value="'+c.id+'">'+c.name+' ('+Q.seatsRemaining(c)+' seats left)</option>'; }).join('')+'</select></div>'+
+      '</div><div class="modal-footer"><button type="button" class="btn btn-ghost" data-action="closeModal">Cancel</button><button type="submit" class="btn btn-primary">Transfer</button></div></form>', {label:'Transfer Student'});
+  },
+  saveTransferCohort: function(form){
+    if(!guardWrite())return;
+    const en = Q.enrollment(form.getAttribute('data-en'));
+    const fromCohort = Q.cohort(en.cohortId);
+    const toCohort = Q.cohort(form.cohortId.value);
+    if(Q.seatsRemaining(toCohort)<=0){ Toast.show('error','No seats available','That section is full.'); return; }
+    en.cohortId = toCohort.id;
+    DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Student transferred between cohorts', entity:'Enrollment '+en.id+' / Student '+en.studentId, details:(fromCohort?fromCohort.name:'—')+' → '+toCohort.name});
+    DB.notifications.unshift({id:Util.uid('nt'), studentId:en.studentId, title:'Class section changed', body:'You have been transferred to '+toCohort.name+'.', date:new Date().toISOString().slice(0,10), read:false, type:'system'});
+    Modal.close(); Toast.show('success','Student transferred', 'Now enrolled in '+toCohort.name+'.'); render();
+  },
+  openAddWaitlistModal: function(el){
+    if(!guardWrite())return;
+    const cohortId = el.getAttribute('data-cohort');
+    const cohort = Q.cohort(cohortId);
+    const enrolledIds = DB.enrollments.filter(function(e){ return e.cohortId===cohortId; }).map(function(e){ return e.studentId; });
+    const waitlistedIds = DB.waitlist.filter(function(w){ return w.cohortId===cohortId && w.status==='waiting'; }).map(function(w){ return w.studentId; });
+    const eligible = DB.students.filter(function(s){ return enrolledIds.indexOf(s.id)===-1 && waitlistedIds.indexOf(s.id)===-1; });
+    Modal.open('<div class="modal-header"><h3 style="margin:0">Add to Waitlist</h3><button class="icon-btn" data-action="closeModal" aria-label="Close">&times;</button></div>'+
+      '<form data-action="saveAddWaitlist" data-cohort="'+cohortId+'"><div class="modal-body">'+
+      '<p class="small muted">'+cohort.name+'</p>'+
+      '<div class="field"><label for="wl-student">Student</label><select id="wl-student" name="studentId">'+eligible.map(function(s){ return '<option value="'+s.id+'">'+s.firstName+' '+s.lastName+'</option>'; }).join('')+'</select></div>'+
+      '</div><div class="modal-footer"><button type="button" class="btn btn-ghost" data-action="closeModal">Cancel</button><button type="submit" class="btn btn-primary">Add to Waitlist</button></div></form>', {label:'Add to Waitlist'});
+  },
+  saveAddWaitlist: function(form){
+    if(!guardWrite())return;
+    const cohortId = form.getAttribute('data-cohort');
+    const studentId = form.studentId.value;
+    DB.waitlist.push({id:Util.uid('wl'), cohortId:cohortId, studentId:studentId, requestedAt:new Date().toISOString().slice(0,10), status:'waiting'});
+    DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Student added to waitlist', entity:'Cohort '+cohortId, details:Q.studentName(studentId)});
+    Modal.close(); Toast.show('success','Added to waitlist',''); render();
+  },
+  enrollFromWaitlist: function(el){
+    if(!guardWrite())return;
+    const w = DB.waitlist.find(function(x){ return x.id===el.getAttribute('data-id'); });
+    const cohort = Q.cohort(w.cohortId);
+    if(Q.seatsRemaining(cohort)<=0){ Toast.show('error','No seats available','This section is now full.'); return; }
+    const course = Q.course(cohort.courseId);
+    DB.enrollments.push({id:Util.uid('en'), studentId:w.studentId, courseId:course.id, cohortId:cohort.id, status:'active', progressPct:0, enrolledAt:new Date().toISOString().slice(0,10), completionDate:null, accessExpiresAt:new Date(Date.now()+365*24*60*60*1000).toISOString().slice(0,10), certPending:false});
+    w.status = 'enrolled';
+    DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Enrolled from waitlist', entity:'Cohort '+cohort.id, details:Q.studentName(w.studentId)});
+    DB.notifications.unshift({id:Util.uid('nt'), studentId:w.studentId, title:'You are enrolled!', body:'A seat opened up in '+cohort.name+' and you have been enrolled.', date:new Date().toISOString().slice(0,10), read:false, type:'system'});
+    Toast.show('success','Enrolled from waitlist', Q.studentName(w.studentId)+' is now enrolled in '+cohort.name+'.'); render();
+  },
+  removeFromWaitlist: function(el){
+    if(!guardWrite())return;
+    const w = DB.waitlist.find(function(x){ return x.id===el.getAttribute('data-id'); });
+    Modal.confirm('Remove from waitlist?','This student will need to be re-added to rejoin the waitlist.','Remove', function(){
+      DB.waitlist = DB.waitlist.filter(function(x){ return x.id!==w.id; });
+      DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Removed from waitlist', entity:'Cohort '+w.cohortId, details:Q.studentName(w.studentId)});
+      Toast.show('success','Removed from waitlist',''); render();
+    }, true);
   }
 });
 
@@ -4270,8 +4363,18 @@ function renderAdminCertificates(){
     if(c.key==='action') return guardedActionButtons([{label:'Issue Certificate', action:'approveCertificate', id:e.id}]);
   }})+'</div>') : '')+
   '<div class="card"><h3>All certificates</h3>'+DataTable({columns:[{key:'num',label:'Certificate #'},{key:'student',label:'Student'},{key:'course',label:'Course'},{key:'status',label:'Status'},{key:'issued',label:'Issued'},{key:'action',label:''}], rows:DB.certificates, emptyMessage:'No certificates issued yet.', renderCell:function(c,cert){
-    if(c.key==='num') return cert.certNumber; if(c.key==='student') return Q.studentName(cert.studentId); if(c.key==='course') return Q.courseName(cert.courseId); if(c.key==='status') return StatusPill(cert.revoked?'revoked':'verified'); if(c.key==='issued') return Util.fmtDate(cert.issuedAt);
-    if(c.key==='action') return cert.revoked ? '' : guardedActionButtons([{label:'Revoke', action:'revokeCertificate', id:cert.id}]);
+    const supersededBy = DB.certificates.find(function(x){ return x.replacementOf===cert.id; });
+    if(c.key==='num') return cert.certNumber + (cert.replacementOf ? '<div class="small muted">Replaces '+(DB.certificates.find(function(x){return x.id===cert.replacementOf;})||{certNumber:'—'}).certNumber+'</div>' : '');
+    if(c.key==='student') return Q.studentName(cert.studentId); if(c.key==='course') return Q.courseName(cert.courseId);
+    if(c.key==='status') return supersededBy ? (StatusPill('superseded')+'<div class="small muted">Now '+supersededBy.certNumber+'</div>') : StatusPill(cert.revoked?'revoked':'verified');
+    if(c.key==='issued') return Util.fmtDate(cert.issuedAt);
+    if(c.key==='action'){
+      if(supersededBy) return '';
+      const opts=[];
+      if(!cert.revoked) opts.push({label:'Revoke', action:'revokeCertificate', id:cert.id});
+      opts.push({label:'Reissue', action:'openReissueCertModal', id:cert.id});
+      return guardedActionButtons(opts);
+    }
   }})+'</div>';
 }
 Object.assign(Actions,{
@@ -4290,6 +4393,28 @@ Object.assign(Actions,{
       DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Certificate revoked', entity:'Certificate '+cert.id, details:cert.certNumber});
       Toast.show('success','Certificate revoked',''); render();
     }, true);
+  },
+  openReissueCertModal: function(el){
+    const cert = DB.certificates.find(function(c){ return c.id===el.getAttribute('data-id'); });
+    Modal.open('<div class="modal-header"><h3 style="margin:0">Reissue Certificate</h3><button class="icon-btn" data-action="closeModal" aria-label="Close">&times;</button></div>'+
+      '<form data-action="saveReissueCertificate" data-cert="'+cert.id+'"><div class="modal-body">'+
+      '<p class="small muted">'+Q.studentName(cert.studentId)+' — '+Q.courseName(cert.courseId)+' — currently '+cert.certNumber+'</p>'+
+      '<p class="small muted">A new certificate number will be issued and this record will be marked as superseded. The original stays on file for audit history.</p>'+
+      '<div class="field"><label for="reissue-reason">Reason for reissue</label><textarea id="reissue-reason" name="reason" placeholder="e.g. Name correction, lost original, license board request"></textarea></div>'+
+      '</div><div class="modal-footer"><button type="button" class="btn btn-ghost" data-action="closeModal">Cancel</button><button type="submit" class="btn btn-primary">Reissue Certificate</button></div></form>', {label:'Reissue Certificate'});
+  },
+  saveReissueCertificate: function(form){
+    if(!guardWrite())return;
+    if(!validateRequired(form,['reason'])) return;
+    const oldCert = DB.certificates.find(function(c){ return c.id===form.getAttribute('data-cert'); });
+    const certNumber = 'TE-'+new Date().getFullYear()+'-'+String(Math.floor(100000+Math.random()*899999));
+    const newCert = Object.assign({}, oldCert, {id:Util.uid('cert'), certNumber:certNumber, revoked:false, verificationStatus:'verified', issuedAt:new Date().toISOString().slice(0,10), replacementOf:oldCert.id, reissueReason:form.reason.value});
+    DB.certificates.push(newCert);
+    const ledgerEntry = DB.ceLedger.find(function(r){ return r.certificateId===oldCert.id; });
+    if(ledgerEntry) ledgerEntry.certificateId = newCert.id;
+    DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Certificate reissued', entity:'Certificate '+newCert.id+' / Student '+oldCert.studentId, details:newCert.certNumber+' replaces '+oldCert.certNumber+' — '+form.reason.value});
+    DB.notifications.unshift({id:Util.uid('nt'), studentId:oldCert.studentId, title:'Certificate reissued', body:'Your certificate for '+Q.courseName(oldCert.courseId)+' was reissued as '+newCert.certNumber+'.', date:new Date().toISOString().slice(0,10), read:false, type:'certificate'});
+    Modal.close(); Toast.show('success','Certificate reissued', newCert.certNumber+' issued; '+oldCert.certNumber+' marked superseded.'); render();
   }
 });
 
