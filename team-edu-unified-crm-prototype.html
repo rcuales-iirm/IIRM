@@ -507,6 +507,19 @@ table.data-table{min-width:640px;}
   .app-topbar .role-badge{display:none;}
 }
 .app-topbar .role-badge{font-size:.78rem;font-weight:700;color:var(--electric-blue-700);background:rgba(0,209,255,.12);border:1px solid rgba(59,130,246,.25);padding:4px 10px;border-radius:999px;}
+
+/* Floating global search, in the topbar */
+.global-search-wrap{position:relative;flex:1;max-width:380px;margin:0 12px;display:flex;align-items:center;min-width:0;}
+.global-search-wrap .search-icon{position:absolute;left:12px;color:var(--secondary-text);pointer-events:none;font-size:.85rem;}
+.global-search-wrap input{padding-left:32px;padding-right:32px;background:rgba(255,255,255,.85);border-radius:12px;min-height:40px;}
+.global-search-wrap .search-clear{position:absolute;right:3px;min-height:32px;min-width:32px;background:transparent;border:none;}
+.global-search-results{position:absolute;top:calc(100% + 6px);left:0;right:0;background:rgba(252,254,255,.98);backdrop-filter:blur(24px) saturate(150%);-webkit-backdrop-filter:blur(24px) saturate(150%);border:1px solid rgba(255,255,255,.9);border-radius:14px;box-shadow:0 20px 50px rgba(15,39,71,.18);max-height:340px;overflow-y:auto;z-index:200;padding:6px;}
+.search-result{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:none;border:none;padding:10px;border-radius:10px;cursor:pointer;font:inherit;color:var(--navy-text);}
+.search-result:hover{background:rgba(0,209,255,.08);}
+@media(max-width:700px){.global-search-wrap{display:none;}}
+
+.topbar-icon{position:relative;font-size:1.05rem;text-decoration:none;}
+.badge-dot{position:absolute;top:-4px;right:-4px;background:var(--error-coral);color:#fff;font-size:.62rem;font-weight:800;min-width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 3px;line-height:1;}
 .app-content{padding:22px 24px 60px;flex:1;}
 .app-content .page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:22px;}
 .sidebar-toggle{display:none;}
@@ -1274,7 +1287,7 @@ function navigate(hash){
   window.location.hash = '#/'+hash;
 }
 window.addEventListener('hashchange', function(){
-  STATE.ui.mobileNavOpen = false; STATE.ui.sidebarOpen = false;
+  STATE.ui.mobileNavOpen = false; STATE.ui.sidebarOpen = false; STATE.ui.globalSearchQuery = '';
   render();
   const main = Util.qs('main-content');
   if(main) main.focus();
@@ -1458,7 +1471,9 @@ function renderAppShell(route, layout){
           '<button class="icon-btn sidebar-toggle" data-action="toggleSidebar" aria-label="Open navigation">&#9776;</button>'+
           '<a href="#/home" class="small muted" style="text-decoration:underline;">&larr; Public site</a>'+
         '</div>'+
+        renderGlobalSearch()+
         '<div class="flex items-center gap-sm">'+
+          (isStudentShell ? renderTopbarQuickIcons() : '')+
           '<span class="role-badge">'+roleLabel+'</span>'+
           renderRoleSwitcher()+
           '<button class="btn btn-ghost btn-sm" data-action="logout">Sign Out</button>'+
@@ -1470,6 +1485,64 @@ function renderAppShell(route, layout){
   '</div>';
 }
 
+function renderGlobalSearch(){
+  const q = STATE.ui.globalSearchQuery || '';
+  const results = q.trim().length ? globalSearchResults(q.trim()) : [];
+  return '<div class="global-search-wrap">'+
+    '<span class="search-icon" aria-hidden="true">&#128269;</span>'+
+    '<label for="global-search" class="sr-only">Search students, courses, or anything…</label>'+
+    '<input id="global-search" type="search" placeholder="Search '+(STATE.session.role==='student'?'courses, certificates, or community…':'students, courses, or cohorts…')+'" value="'+Util.escapeHtml(q)+'" data-oninput="globalSearchInput" autocomplete="off">'+
+    (q ? '<button class="icon-btn search-clear" data-action="globalSearchClear" aria-label="Clear search">&times;</button>' : '')+
+    (q.trim().length ? ('<div class="global-search-results" role="listbox">'+(results.length ? results.map(function(r){
+      return '<button class="search-result" role="option" data-action="globalSearchSelect" data-route="'+r.route+'"><span aria-hidden="true">'+r.icon+'</span><span><strong>'+Util.escapeHtml(r.label)+'</strong><br><span class="small muted">'+Util.escapeHtml(r.sublabel)+'</span></span></button>';
+    }).join('') : '<div class="small muted" style="padding:14px;">No results for "'+Util.escapeHtml(q)+'".</div>')+'</div>') : '')+
+  '</div>';
+}
+function globalSearchResults(query){
+  const q = query.toLowerCase();
+  const out = [];
+  if(STATE.session.role==='student'){
+    const s = Q.currentStudent();
+    DB.courses.forEach(function(c){
+      if(c.title.toLowerCase().indexOf(q)>-1){
+        const en = s ? DB.enrollments.find(function(e){ return e.studentId===s.id && e.courseId===c.id; }) : null;
+        out.push({icon:'&#128218;', label:c.title, sublabel:en?'Continue this course':'View course', route: en?('course/'+en.id):('course/'+c.id)});
+      }
+    });
+    if(s){
+      Q.certificatesForStudent(s.id).forEach(function(cert){
+        const course = Q.course(cert.courseId);
+        if(course.title.toLowerCase().indexOf(q)>-1 || cert.certNumber.toLowerCase().indexOf(q)>-1) out.push({icon:'&#127894;', label:cert.certNumber, sublabel:course.title, route:'certificates'});
+      });
+      Q.communitiesForStudent(s.id).forEach(function(c){
+        Q.postsForCommunity(c.id).forEach(function(p){
+          if(p.content.toLowerCase().indexOf(q)>-1) out.push({icon:'&#128172;', label:p.content.slice(0,50)+(p.content.length>50?'…':''), sublabel:'In '+c.name, route:'community/'+c.id});
+        });
+      });
+    }
+  } else {
+    if(can('students')){
+      DB.students.forEach(function(s){
+        if((s.firstName+' '+s.lastName+' '+s.email).toLowerCase().indexOf(q)>-1) out.push({icon:'&#128100;', label:s.firstName+' '+s.lastName, sublabel:s.email, route:'students/'+s.id});
+      });
+    }
+    DB.courses.forEach(function(c){
+      if(c.title.toLowerCase().indexOf(q)>-1) out.push({icon:'&#128218;', label:c.title, sublabel:c.profession+' · '+c.creditHours+' CE hrs', route:'course/'+c.id});
+    });
+    DB.cohorts.forEach(function(ch){
+      if(ch.name.toLowerCase().indexOf(q)>-1) out.push({icon:'&#128101;', label:ch.name, sublabel:Q.courseName(ch.courseId), route:'class/'+ch.id});
+    });
+  }
+  return out.slice(0,8);
+}
+function renderTopbarQuickIcons(){
+  const s = Q.currentStudent();
+  if(!s) return '';
+  const unreadNotif = DB.notifications.filter(function(n){ return n.studentId===s.id && !n.read; }).length;
+  const unreadMsg = DB.messages.filter(function(m){ return m.studentId===s.id && !m.read; }).length;
+  return '<a href="#/messages" class="icon-btn topbar-icon" aria-label="Messages ('+unreadMsg+' unread)" title="Messages">&#128172;'+(unreadMsg?('<span class="badge-dot">'+unreadMsg+'</span>'):'')+'</a>'+
+    '<a href="#/notifications" class="icon-btn topbar-icon" aria-label="Notifications ('+unreadNotif+' unread)" title="Notifications">&#128276;'+(unreadNotif?('<span class="badge-dot">'+unreadNotif+'</span>'):'')+'</a>';
+}
 const STUDENT_BOTTOM_NAV = [
   {key:'dashboard', route:'dashboard', label:'Home', glyph:'&#8962;'},
   {key:'my-courses', route:'my-courses', label:'Courses', glyph:'&#128218;'},
@@ -1701,6 +1774,9 @@ function afterRender(){ /* reserved hook for post-render side effects (focus, ch
 
 Object.assign(Actions, {
   toggleMoreDrawer: function(){ STATE.ui.moreDrawerOpen = !STATE.ui.moreDrawerOpen; render(); },
+  globalSearchInput: function(el){ STATE.ui.globalSearchQuery = el.value; render(); },
+  globalSearchClear: function(){ STATE.ui.globalSearchQuery = ''; render(); },
+  globalSearchSelect: function(el){ STATE.ui.globalSearchQuery = ''; navigate(el.getAttribute('data-route')); },
   setFilter: function(el){
     const page = el.getAttribute('data-filter-page');
     const key = el.getAttribute('data-filter-key');
@@ -2538,19 +2614,43 @@ function renderContinueCard(en){
   '</div>'+courseAccessBanner(en, course);
 }
 
+const MY_COURSES_STATUS_FILTERS = [
+  ['all','All Courses'], ['not-started','Not Started'], ['in-progress','In Progress'],
+  ['completed','Completed'], ['expiring','Expiring Soon']
+];
 Renderers['my-courses'] = function(){
   const s = studentGuardOrRedirect(); if(!s) return renderNotFound();
-  const ens = Q.enrollmentsForStudent(s.id);
+  let ens = Q.enrollmentsForStudent(s.id);
+  const f = STATE.filters['my-courses'] || {};
+  const status = f.status || 'all';
+  ens = ens.filter(function(en){
+    if(status==='not-started') return en.status==='active' && en.progressPct===0;
+    if(status==='in-progress') return en.status==='active' && en.progressPct>0 && en.progressPct<100;
+    if(status==='completed') return en.status==='completed';
+    if(status==='expiring') return en.status==='active' && Util.daysUntil(en.accessExpiresAt)>=0 && Util.daysUntil(en.accessExpiresAt)<=30;
+    return true;
+  });
+  if(f.profession && f.profession!=='all') ens = ens.filter(function(en){ return Q.course(en.courseId).profession===f.profession; });
+  if(f.delivery && f.delivery!=='all') ens = ens.filter(function(en){ return f.delivery==='self-paced' ? Q.course(en.courseId).deliveryMethod==='self-paced' : Q.course(en.courseId).deliveryMethod!=='self-paced'; });
   return '<div class="page-head"><h1>My Courses</h1><a class="btn btn-outline btn-sm" href="#/catalog">Browse More Courses</a></div>'+
+  '<div class="flex gap-xs mb-md" style="flex-wrap:wrap;">'+MY_COURSES_STATUS_FILTERS.map(function(sf){
+    return '<button class="pill '+(status===sf[0]?'pill-info':'pill-neutral')+'" style="cursor:pointer;border-width:1.5px;" data-action="setFilter" data-filter-page="my-courses" data-filter-key="status" value="'+sf[0]+'">'+sf[1]+'</button>';
+  }).join('')+'</div>'+
+  '<div class="table-filters mb-md">'+
+    '<select data-onchange="setFilter" data-filter-page="my-courses" data-filter-key="profession"><option value="all">All professions</option><option value="Real Estate" '+(f.profession==='Real Estate'?'selected':'')+'>Real Estate</option><option value="Insurance" '+(f.profession==='Insurance'?'selected':'')+'>Insurance</option><option value="Mortgage" '+(f.profession==='Mortgage'?'selected':'')+'>Mortgage</option></select>'+
+    '<select data-onchange="setFilter" data-filter-page="my-courses" data-filter-key="delivery"><option value="all">Self-paced &amp; scheduled</option><option value="self-paced" '+(f.delivery==='self-paced'?'selected':'')+'>Self-Paced only</option><option value="scheduled" '+(f.delivery==='scheduled'?'selected':'')+'>Scheduled only</option></select>'+
+    ((f.status&&f.status!=='all')||(f.profession&&f.profession!=='all')||(f.delivery&&f.delivery!=='all') ? '<button class="btn btn-ghost btn-sm" data-action="clearFilters" data-filter-page="my-courses">Clear filters</button>' : '')+
+  '</div>'+
   (ens.length ? '<div class="grid grid-3">'+ens.map(function(en){
     const course = Q.course(en.courseId);
     return '<div class="course-card"><div class="thumb"></div><div class="body">'+
-      '<div class="meta">'+StatusPill(en.status)+'<span class="pill pill-gold">'+course.creditHours+' CE Hrs</span></div>'+
+      '<div class="meta">'+StatusPill(en.status)+'<span class="pill pill-gold">'+course.creditHours+' CE Hrs</span><span class="pill pill-neutral">'+Q.deliveryLabel(course.deliveryMethod)+'</span></div>'+
       '<h3 class="mb-0"><a href="#/course/'+en.id+'">'+course.title+'</a></h3>'+
+      '<p class="small muted mb-0">'+flattenLessons(course).length+' lessons &middot; '+Q.instructorName(course.instructorId)+'</p>'+
       '<div class="progress-track"><div class="progress-fill" style="width:'+en.progressPct+'%"></div></div><span class="small muted">'+en.progressPct+'% complete</span>'+
       '<div class="price-row"><a class="btn btn-primary btn-sm" href="#/course/'+en.id+'">Open Course</a></div>'+
     '</div></div>';
-  }).join('')+'</div>' : EmptyState('You are not enrolled in any courses yet.', '&#128218;'));
+  }).join('')+'</div>' : EmptyState('No courses match these filters.', '&#128218;'));
 };
 
 Renderers.course = (function(){ const publicCourse = Renderers.course; return function(params){
