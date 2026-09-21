@@ -1025,15 +1025,18 @@ const DB = {
   ],
 
   communityPosts: [
-    {id:'post1', communityId:'com-c2', author:'Marisol Vega', authorRole:'Instructor', pinned:true, date:'2026-09-15', content:'Welcome to Ethics and Business Practices! Please introduce yourself below and let us know what market you work in. I post a new discussion prompt every Monday.', replies:[
+    {id:'post1', communityId:'com-c2', author:'Marisol Vega', authorRole:'Instructor', postType:'announcement', pinned:true, date:'2026-09-15', content:'Welcome to Ethics and Business Practices! Please introduce yourself below and let us know what market you work in. I post a new discussion prompt every Monday.', replies:[
       {id:'r1', author:'Rafael Sandoval', authorRole:'Student', date:'2026-09-16', content:'Excited to be here — I work primarily in Fort Myers commercial resale.'}
     ]},
-    {id:'post2', communityId:'com-c2', author:'Alicia Bennett', authorRole:'Student', pinned:false, date:'2026-09-18', content:'Question: does the "clear cooperation" standard covered in Module 2 apply to pocket listings across all MLS regions in Florida, or just the ones we discussed?', replies:[
+    {id:'post2', communityId:'com-c2', author:'Alicia Bennett', authorRole:'Student', postType:'question', pinned:false, date:'2026-09-18', content:'Question: does the "clear cooperation" standard covered in Module 2 apply to pocket listings across all MLS regions in Florida, or just the ones we discussed?', replies:[
       {id:'r2', author:'Marisol Vega', authorRole:'Instructor', date:'2026-09-18', content:'Great question — MLS participation rules vary by board, but the ethical duty of fair dealing applies regardless of MLS policy. I cover the regional nuance in the Module 3 reading.'}
     ]},
-    {id:'post3', communityId:'com-c4', author:'Marisol Vega', authorRole:'Instructor', pinned:true, date:'2026-09-10', content:'Reminder: our live Fair Housing session is October 14th at 10:00 AM ET. Attendance is required for course credit — see the Events tab for the join link.', replies:[]},
-    {id:'post4', communityId:'com-c1', author:'Harold Jennings, Esq.', authorRole:'Instructor', pinned:true, date:'2026-01-05', content:'This community stays open in read-only mode for 14 days after your course access ends, so you can still reference prior discussions while you complete your renewal.', replies:[]},
-    {id:'post5', communityId:'com-alumni', author:'TEAM EDU Staff', authorRole:'Staff', pinned:true, date:'2026-01-01', content:'Welcome to the TEAM EDU Alumni Network — a permanent home for graduates to keep networking after individual course communities close.', replies:[]}
+    {id:'post3', communityId:'com-c4', author:'Marisol Vega', authorRole:'Instructor', postType:'announcement', pinned:true, date:'2026-09-10', content:'Reminder: our live Fair Housing session is October 14th at 10:00 AM ET. Attendance is required for course credit — see the Events tab for the join link.', replies:[]},
+    {id:'post4', communityId:'com-c1', author:'Harold Jennings, Esq.', authorRole:'Instructor', postType:'announcement', pinned:true, date:'2026-01-05', content:'This community stays open in read-only mode for 14 days after your course access ends, so you can still reference prior discussions while you complete your renewal.', replies:[]},
+    {id:'post5', communityId:'com-alumni', author:'TEAM EDU Staff', authorRole:'Staff', postType:'announcement', pinned:true, date:'2026-01-01', content:'Welcome to the TEAM EDU Alumni Network — a permanent home for graduates to keep networking after individual course communities close.', replies:[]},
+    {id:'post6', communityId:'com-c3', author:'Trevor Kim', authorRole:'Student', postType:'study-group', pinned:false, date:'2026-09-17', content:'Starting a study group for the 14-Hour Package — planning to meet online before the October 5th session. Anyone want to compare notes on the contract-law module?', replies:[
+      {id:'r3', author:'Devon Whitaker', authorRole:'Student', date:'2026-09-18', content:'Count me in — the contract-law module was dense. What time works for you?'}
+    ]}
   ],
 
   communityEvents: [
@@ -1299,7 +1302,7 @@ const Renderers = {};
 
 function render(){
   STATE.route = parseHash();
-  if(STATE.route.page !== 'community' && STATE.ui.prefillDiscussion){ STATE.ui.prefillDiscussion = null; }
+  if(STATE.route.page !== 'community' && STATE.ui.prefillDiscussion){ STATE.ui.prefillDiscussion = null; STATE.ui.prefillPostType = null; }
   const root = Util.qs('app-root');
   const def = STATE.session.loggedIn ? ROLE_DEFS[STATE.session.role] : null;
   const active = document.activeElement;
@@ -2547,7 +2550,7 @@ Renderers.dashboard = function(){
   const dueAssignments = DB.assignments.filter(function(a){ return ens.some(function(e){ return e.courseId===a.courseId; }); }).filter(function(a){ return !DB.submissions.some(function(sub){ return sub.assignmentId===a.id && sub.studentId===s.id; }); });
   const upcoming = DB.communityEvents.filter(function(ev){ return ens.some(function(e){ return Q.course(e.courseId).communityId===ev.communityId; }); }).sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
   const nextEvent = upcoming[0];
-  const announcements = DB.communityPosts.filter(function(p){ return p.pinned && ens.some(function(e){ return Q.course(e.courseId).communityId===p.communityId; }); });
+  const announcements = DB.communityPosts.filter(function(p){ return (p.postType==='announcement'||p.pinned) && ens.some(function(e){ return Q.course(e.courseId).communityId===p.communityId; }); });
   const communityReplies = DB.communityPosts.filter(function(p){ return ens.some(function(e){ return Q.course(e.courseId).communityId===p.communityId; }); }).reduce(function(a,p){ return a+p.replies.length; },0);
   const certs = Q.certificatesForStudent(s.id);
   const certsInProgress = ens.filter(function(e){ return e.certPending || (e.progressPct>0 && e.progressPct<100); }).length;
@@ -2873,14 +2876,16 @@ Object.assign(Actions,{
     const note = DB.lessonNotes.find(function(n){ return n.id===el.getAttribute('data-note'); });
     const course = Q.course(note.courseId);
     STATE.ui.prefillDiscussion = note.content;
-    STATE.ui.activeTabs['community-'+course.communityId] = 'discussions';
+    STATE.ui.prefillPostType = 'discussion';
+    STATE.ui.activeTabs['community-'+course.communityId] = 'posts';
     navigate('community/'+course.communityId);
     Toast.show('info','Ready to share','Review your note and click Post to share it with the community.');
   },
   askCommunity: function(el){
     const course = Q.course(el.getAttribute('data-course'));
     STATE.ui.prefillDiscussion = 'Question about "'+el.getAttribute('data-lesson')+'": ';
-    STATE.ui.activeTabs['community-'+course.communityId] = 'discussions';
+    STATE.ui.prefillPostType = 'question';
+    STATE.ui.activeTabs['community-'+course.communityId] = 'posts';
     navigate('community/'+course.communityId);
     Toast.show('info','Ask away','Finish your question and click Post — nothing is submitted until you confirm.');
   },
@@ -3015,30 +3020,43 @@ Renderers.community = function(params){
   const readOnly = access.level==='read-only';
   return head+(readOnly ? '<div class="banner banner-warn"><span aria-hidden="true">&#128274;</span><span>Read-only access: '+(access.reason||'')+'</span></div>' : '')+
   Tabs('community-'+communityId, [
-    {key:'feed', label:'Activity Feed', render:function(){ return renderCommunityFeed(community, readOnly); }},
-    {key:'discussions', label:'Discussions', render:function(){ return renderCommunityDiscussions(community, readOnly); }},
+    {key:'posts', label:'All Posts', render:function(){ return renderCommunityAllPosts(community, readOnly); }},
+    {key:'questions', label:'Questions', render:function(){ return renderCommunityByType(community, 'question', 'No questions posted yet — be the first to ask one in All Posts.'); }},
+    {key:'announcements', label:'Announcements', render:function(){ return renderCommunityByType(community, 'announcement', 'No announcements from your instructor yet.'); }},
+    {key:'study-groups', label:'Study Groups', render:function(){ return renderCommunityByType(community, 'study-group', 'No study groups yet — start one from All Posts.'); }},
     {key:'members', label:'Members', render:function(){ return renderCommunityMembers(community); }},
     {key:'events', label:'Events', render:function(){ return renderCommunityEvents(community); }},
     {key:'resources', label:'Resources', render:function(){ return renderCommunityResources(community); }}
   ]);
 };
-function renderCommunityFeed(community, readOnly){
-  const posts = Q.postsForCommunity(community.id).filter(function(p){ return p.pinned; }).concat(Q.postsForCommunity(community.id).filter(function(p){ return !p.pinned; })).slice(0,8);
-  return '<div class="community-feed">'+(posts.length ? posts.map(renderPost).join('') : EmptyState('No activity yet in this community.'))+'</div>';
+function communityPostTypeOptions(selected){
+  const canAnnounce = STATE.session.loggedIn && ['super_admin','school_admin','community_moderator','instructor','cohort_leader'].includes(STATE.session.role);
+  const opts = [['discussion','Discussion'],['question','Question'],['study-group','Study Group']];
+  if(canAnnounce) opts.push(['announcement','Announcement']);
+  return opts.map(function(o){ return '<option value="'+o[0]+'" '+(selected===o[0]?'selected':'')+'>'+o[1]+'</option>'; }).join('');
 }
-function renderCommunityDiscussions(community, readOnly){
+function renderCommunityAllPosts(community, readOnly){
   const search = (STATE.filters['community-search-'+community.id]||{}).q || '';
   let posts = Q.postsForCommunity(community.id);
   if(search) posts = posts.filter(function(p){ return p.content.toLowerCase().indexOf(search.toLowerCase())>-1; });
   const prefill = STATE.ui.prefillDiscussion || '';
-  return '<div class="field"><label for="comm-search" class="sr-only">Search discussions</label><input id="comm-search" placeholder="Search discussions…" value="'+Util.escapeHtml(search)+'" data-oninput="setFilter" data-filter-page="community-search-'+community.id+'" data-filter-key="q"></div>'+
-    (readOnly ? '' : ('<form data-action="postToCommunity" data-community="'+community.id+'" class="card" style="margin-bottom:16px;">'+(prefill?'<div class="banner banner-info mb-sm"><span aria-hidden="true">&#8505;</span><span>Review your text below, then click Post to share it — nothing is submitted automatically.</span></div>':'')+'<div class="field mb-0"><label for="new-post">Start a discussion</label><textarea id="new-post" name="content" placeholder="Ask a question or share something with the class…">'+Util.escapeHtml(prefill)+'</textarea></div><button class="btn btn-primary btn-sm mt-sm" type="submit">Post</button></form>'))+
-    '<div class="community-feed">'+(posts.length ? posts.map(function(p){ return renderPost(p, true); }).join('') : EmptyState('No discussions match your search.'))+'</div>';
+  return '<div class="field"><label for="comm-search" class="sr-only">Search posts</label><input id="comm-search" placeholder="Search posts…" value="'+Util.escapeHtml(search)+'" data-oninput="setFilter" data-filter-page="community-search-'+community.id+'" data-filter-key="q"></div>'+
+    (readOnly ? '' : ('<form data-action="postToCommunity" data-community="'+community.id+'" class="card" style="margin-bottom:16px;">'+(prefill?'<div class="banner banner-info mb-sm"><span aria-hidden="true">&#8505;</span><span>Review your text below, then click Post to share it — nothing is submitted automatically.</span></div>':'')+
+      '<div class="grid grid-2"><div class="field mb-0"><label for="new-post">Share with the community</label><textarea id="new-post" name="content" placeholder="Ask a question, share an update, or start a study group…">'+Util.escapeHtml(prefill)+'</textarea></div>'+
+      '<div class="field mb-0"><label for="new-post-type">Post type</label><select id="new-post-type" name="postType">'+communityPostTypeOptions(STATE.ui.prefillPostType)+'</select></div></div>'+
+      '<button class="btn btn-primary btn-sm mt-sm" type="submit">Post</button></form>'))+
+    '<div class="community-feed">'+(posts.length ? posts.map(function(p){ return renderPost(p, true); }).join('') : EmptyState('No posts match your search.'))+'</div>';
 }
+function renderCommunityByType(community, type, emptyMsg){
+  const posts = Q.postsForCommunity(community.id).filter(function(p){ return (p.postType||'discussion')===type; });
+  return '<div class="community-feed">'+(posts.length ? posts.map(function(p){ return renderPost(p, true); }).join('') : EmptyState(emptyMsg))+'</div>';
+}
+const POST_TYPE_LABEL = {question:'Question', announcement:'Announcement', 'study-group':'Study Group', discussion:'Discussion'};
 function renderPost(post, allowReply){
   const canModerate = STATE.session.loggedIn && ['super_admin','school_admin','community_moderator','instructor','cohort_leader'].includes(STATE.session.role);
+  const typeLabel = POST_TYPE_LABEL[post.postType||'discussion'];
   return '<div class="post">'+
-    '<div class="post-head"><div class="avatar">'+Util.initials(post.author)+'</div><div><strong>'+post.author+'</strong> <span class="pill pill-neutral">'+post.authorRole+'</span><div class="small muted">'+Util.fmtDate(post.date)+(post.pinned?' &middot; 📌 Pinned':'')+'</div></div></div>'+
+    '<div class="post-head"><div class="avatar">'+Util.initials(post.author)+'</div><div><strong>'+post.author+'</strong> <span class="pill pill-neutral">'+post.authorRole+'</span> '+(post.postType&&post.postType!=='discussion'?('<span class="pill '+(post.postType==='announcement'?'pill-gold':(post.postType==='question'?'pill-info':'pill-success'))+'">'+typeLabel+'</span>'):'')+'<div class="small muted">'+Util.fmtDate(post.date)+(post.pinned?' &middot; 📌 Pinned':'')+'</div></div></div>'+
     '<p>'+Util.escapeHtml(post.content)+'</p>'+
     '<div class="flex gap-sm">'+
       (allowReply ? ('<button class="link-btn" data-action="toggleReplyBox" data-post="'+post.id+'">Reply</button>') : '')+
@@ -3085,8 +3103,8 @@ Object.assign(Actions,{
     const communityId = form.getAttribute('data-community');
     const name = STATE.session.loggedIn ? STATE.session.name : 'Guest';
     const role = STATE.session.role==='student' ? 'Student' : (ROLE_DEFS[STATE.session.role]||{}).label || 'Staff';
-    DB.communityPosts.unshift({id:Util.uid('post'), communityId:communityId, author:name, authorRole:role, pinned:false, date:new Date().toISOString().slice(0,10), content:form.content.value, replies:[]});
-    STATE.ui.prefillDiscussion = null;
+    DB.communityPosts.unshift({id:Util.uid('post'), communityId:communityId, author:name, authorRole:role, postType:form.postType?form.postType.value:'discussion', pinned:false, date:new Date().toISOString().slice(0,10), content:form.content.value, replies:[]});
+    STATE.ui.prefillDiscussion = null; STATE.ui.prefillPostType = null;
     Toast.show('success','Discussion posted','Your post is now visible to the community.');
     render();
   },
