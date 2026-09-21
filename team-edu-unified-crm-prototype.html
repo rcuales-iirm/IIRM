@@ -996,6 +996,13 @@ const DB = {
     {id:'pp2', courseId:'c3', installments:3, amountPerInstallment:26.34, label:'3 payments of $26.34'}
   ],
 
+  subscriptions: [
+    {id:'sub1', studentId:'s4', programId:'p2', planName:'Insurance & Mortgage Compliance — Monthly Membership', amount:15, billingCycle:'monthly', status:'active', startDate:'2026-01-15', nextBillingDate:'2026-10-15', canceledAt:null},
+    {id:'sub2', studentId:'s8', programId:'p2', planName:'Insurance & Mortgage Compliance — Monthly Membership', amount:15, billingCycle:'monthly', status:'active', startDate:'2025-12-01', nextBillingDate:'2026-10-01', canceledAt:null},
+    {id:'sub3', studentId:'s12', programId:'p1', planName:'Real Estate Renewal Track — Annual Membership', amount:129, billingCycle:'annual', status:'past_due', startDate:'2025-07-15', nextBillingDate:'2026-07-15', canceledAt:null},
+    {id:'sub4', studentId:'s2', programId:'p1', planName:'Real Estate Renewal Track — Annual Membership', amount:129, billingCycle:'annual', status:'canceled', startDate:'2025-01-10', nextBillingDate:null, canceledAt:'2026-06-01'}
+  ],
+
   coupons: [
     {id:'cp1', code:'WELCOME10', type:'percent', value:10, active:true, description:'10% off first course'},
     {id:'cp2', code:'FLPRO15', type:'percent', value:15, active:true, description:'15% off for FL professional associations'},
@@ -1211,6 +1218,7 @@ const ADMIN_MODULES = [
   {key:'credits', label:'CE-Credit Ledger', glyph:'&#128202;'},
   {key:'transactions', label:'Transactions', glyph:'&#128179;'},
   {key:'payment-plans', label:'Payment Plans', glyph:'&#128179;'},
+  {key:'subscriptions', label:'Subscriptions', glyph:'&#128257;'},
   {key:'coupons', label:'Coupons', glyph:'&#127991;'},
   {key:'refunds', label:'Refunds', glyph:'&#8630;'},
   {key:'communications', label:'Communications', glyph:'&#9993;'},
@@ -1230,7 +1238,7 @@ const ROLE_DEFS = {
   school_admin: { label:'School Administrator', layout:'admin', modules: ALL_ADMIN_KEYS.filter(k=>!['staff','corporate-roster'].includes(k)), readOnly:false },
   registrar: { label:'Registrar', layout:'admin', modules:['dashboard','applications','students','programs','courses','enrollments','cohorts','calendar','certificates','credits','documents','reports'], readOnly:false },
   community_moderator: { label:'Community Moderator', layout:'admin', modules:['dashboard','communities'], readOnly:false },
-  finance_staff: { label:'Finance Staff', layout:'admin', modules:['dashboard','transactions','payment-plans','coupons','refunds','reports'], readOnly:false },
+  finance_staff: { label:'Finance Staff', layout:'admin', modules:['dashboard','transactions','payment-plans','subscriptions','coupons','refunds','reports'], readOnly:false },
   student_support: { label:'Student Support', layout:'admin', modules:['dashboard','students','support','communications','documents'], readOnly:false },
   corporate_training_manager: { label:'Corporate Training Manager', layout:'admin', modules:['dashboard','corporate-roster','reports'], readOnly:false },
   auditor: { label:'Read-Only Auditor', layout:'admin', modules:['dashboard','students','courses','enrollments','certificates','transactions','reports','audit'], readOnly:true },
@@ -1457,7 +1465,7 @@ function getNavForLayout(layout){
     'Recruiting & Records':['leads','applications','students','programs'],
     'Courses & Scheduling':['courses','cohorts','calendar','instructors'],
     'Academics':['enrollments','attendance','grading','assessments','communities','certificates','credits'],
-    'Finance':['transactions','payment-plans','coupons','refunds'],
+    'Finance':['transactions','payment-plans','subscriptions','coupons','refunds'],
     'Engagement':['communications','automations','documents','support'],
     'Reporting & Admin':['reports','staff','audit','settings']
   };
@@ -1637,6 +1645,7 @@ function StatusPill(status){
     published:['pill-success','&#10003;','Published'], draft:['pill-neutral','&#9998;','Draft'],
     verified:['pill-success','&#10003;','Verified'], revoked:['pill-danger','&#9888;','Revoked'], superseded:['pill-neutral','&#8635;','Superseded'],
     'Matched':['pill-success','&#10003;','Matched'], 'Unreconciled':['pill-warn','&#8987;','Unreconciled'], 'Flagged for Review':['pill-danger','&#9888;','Flagged for Review'], 'Not Applicable':['pill-neutral','&#8226;','N/A'],
+    past_due:['pill-warn','&#9888;','Past Due'],
     submitted:['pill-info','&#8593;','Submitted'], graded:['pill-success','&#10003;','Graded'],
     locked:['pill-neutral','&#128274;','Locked'], present:['pill-success','&#10003;','Present'],
     absent:['pill-danger','&#9888;','Absent'], excused:['pill-warn','&#9888;','Excused']
@@ -4583,6 +4592,60 @@ Object.assign(Actions,{
     const amt = Math.round((course.price/n)*100)/100;
     DB.paymentPlans.push({id:Util.uid('pp'), courseId:course.id, installments:n, amountPerInstallment:amt, label:n+' payments of '+Util.fmtMoney(amt)});
     Modal.close(); Toast.show('success','Payment plan created',''); render();
+  }
+});
+
+Renderers.subscriptions = function(){
+  const f = STATE.filters.subscriptions || {};
+  let rows = DB.subscriptions.slice();
+  if(f.status && f.status!=='all') rows = rows.filter(function(s){ return s.status===f.status; });
+  const mrr = DB.subscriptions.filter(function(s){ return s.status==='active'; }).reduce(function(a,s){ return a + (s.billingCycle==='annual' ? s.amount/12 : s.amount); }, 0);
+  return '<div class="page-head"><h1>Subscriptions</h1></div>'+
+  '<p class="small muted mb-md">Recurring program memberships, distinct from one-time course purchases and installment payment plans. Estimated MRR from active subscriptions: '+Util.fmtMoney(mrr)+'.</p>'+
+  '<div class="table-toolbar"><div class="table-filters"><select data-onchange="setFilter" data-filter-page="subscriptions" data-filter-key="status"><option value="all">All statuses</option><option value="active" '+(f.status==='active'?'selected':'')+'>Active</option><option value="past_due" '+(f.status==='past_due'?'selected':'')+'>Past Due</option><option value="canceled" '+(f.status==='canceled'?'selected':'')+'>Canceled</option></select></div></div>'+
+  DataTable({columns:[{key:'student',label:'Student'},{key:'plan',label:'Membership Plan'},{key:'amount',label:'Billing'},{key:'status',label:'Status'},{key:'next',label:'Next Billing'},{key:'action',label:''}], rows:rows, emptyMessage:'No subscriptions match this filter.', renderCell:function(c,s){
+    if(c.key==='student') return can('students') ? ('<a href="#/students/'+s.studentId+'">'+Q.studentName(s.studentId)+'</a>') : Q.studentName(s.studentId);
+    if(c.key==='plan') return s.planName;
+    if(c.key==='amount') return Util.fmtMoney(s.amount)+' / '+(s.billingCycle==='annual'?'year':'month');
+    if(c.key==='status') return StatusPill(s.status==='canceled'?'inactive':s.status);
+    if(c.key==='next') return s.nextBillingDate ? Util.fmtDate(s.nextBillingDate) : '—';
+    if(c.key==='action'){
+      const opts=[];
+      if(s.status==='past_due') opts.push({label:'Mark Paid', action:'markSubscriptionPaid', id:s.id});
+      if(s.status!=='canceled') opts.push({label:'Cancel Subscription', action:'cancelSubscription', id:s.id});
+      else opts.push({label:'Reactivate', action:'reactivateSubscription', id:s.id});
+      return guardedActionButtons(opts);
+    }
+  }});
+};
+Object.assign(Actions,{
+  markSubscriptionPaid: function(el){
+    if(!guardWrite())return;
+    const sub = DB.subscriptions.find(function(s){ return s.id===el.getAttribute('data-id'); });
+    sub.status = 'active';
+    const next = new Date(sub.nextBillingDate); next.setMonth(next.getMonth() + (sub.billingCycle==='annual'?12:1));
+    sub.nextBillingDate = next.toISOString().slice(0,10);
+    DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Subscription payment recorded', entity:'Subscription '+sub.id+' / Student '+sub.studentId, details:sub.planName});
+    Toast.show('success','Subscription marked paid',''); render();
+  },
+  cancelSubscription: function(el){
+    if(!guardWrite())return;
+    Modal.confirm('Cancel this subscription?','The student keeps access until the current billing period ends; no further charges will occur.','Cancel Subscription', function(){
+      const sub = DB.subscriptions.find(function(s){ return s.id===el.getAttribute('data-id'); });
+      sub.status = 'canceled'; sub.canceledAt = new Date().toISOString().slice(0,10); sub.nextBillingDate = null;
+      DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Subscription canceled', entity:'Subscription '+sub.id+' / Student '+sub.studentId, details:sub.planName});
+      DB.notifications.unshift({id:Util.uid('nt'), studentId:sub.studentId, title:'Subscription canceled', body:'Your membership ('+sub.planName+') has been canceled.', date:new Date().toISOString().slice(0,10), read:false, type:'billing'});
+      Toast.show('success','Subscription canceled',''); render();
+    }, true);
+  },
+  reactivateSubscription: function(el){
+    if(!guardWrite())return;
+    const sub = DB.subscriptions.find(function(s){ return s.id===el.getAttribute('data-id'); });
+    sub.status = 'active'; sub.canceledAt = null;
+    const next = new Date(); next.setMonth(next.getMonth() + (sub.billingCycle==='annual'?12:1));
+    sub.nextBillingDate = next.toISOString().slice(0,10);
+    DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Subscription reactivated', entity:'Subscription '+sub.id+' / Student '+sub.studentId, details:sub.planName});
+    Toast.show('success','Subscription reactivated',''); render();
   }
 });
 
