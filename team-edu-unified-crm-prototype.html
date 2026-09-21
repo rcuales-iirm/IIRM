@@ -1137,6 +1137,11 @@ const DB = {
     {id:'ln1', studentId:'s1', lessonId:'l2', courseId:'c2', date:'2026-09-14', content:'Remember: clear cooperation applies board-by-board — check the MLS policy for Fort Myers before advising clients.'}
   ],
 
+  notificationPreferences: {
+    // Seeded with one non-default value (community email off) to demonstrate persistence.
+    s1: { community:{inApp:true, email:false} }
+  },
+
   studentNotes: [
     {id:'note1', studentId:'s2', author:'Priya Nandakumar', role:'Registrar', date:'2026-09-05', content:'Flagged as at-risk: progress has stalled below 30% for over two weeks. Recommend outreach.'},
     {id:'note2', studentId:'s5', author:'Owen Castellanos', role:'Student Support', date:'2026-09-16', content:'Reported technical issue accessing Module 2 video; also has an access-expiration risk this cycle.'}
@@ -1749,7 +1754,11 @@ const Actions = {
 
 document.addEventListener('click', function(e){
   const el = e.target.closest('[data-action]');
-  if(!el) return;
+  // Forms are handled exclusively by the 'submit' listener below. Without this
+  // guard, clicking any checkbox/input/select inside a data-action-bearing
+  // <form> would bubble to the form, fire its action prematurely, and (via
+  // preventDefault) block the control's own default toggle/focus behavior.
+  if(!el || el.tagName === 'FORM') return;
   const action = el.getAttribute('data-action');
   if(Actions[action]){ e.preventDefault(); Actions[action](el, e); }
 });
@@ -1840,6 +1849,12 @@ const Q = {
   applicationsForStudent: function(sid){ return DB.applications.filter(function(a){ return a.studentId===sid; }); },
   notesForStudent: function(sid){ return DB.studentNotes.filter(function(n){ return n.studentId===sid; }); },
   notesForLesson: function(sid,lessonId){ return DB.lessonNotes.filter(function(n){ return n.studentId===sid && n.lessonId===lessonId; }); },
+  notifPrefs: function(sid){
+    const saved = DB.notificationPreferences[sid] || {};
+    const out = {};
+    NOTIFICATION_CATEGORIES.forEach(function(c){ out[c.key] = Object.assign({inApp:true, email:true}, saved[c.key]||{}); });
+    return out;
+  },
   submissionsForStudent: function(sid){ return DB.submissions.filter(function(s){ return s.studentId===sid; }); },
   attendanceForStudent: function(sid){
     const out = [];
@@ -2225,6 +2240,9 @@ const EnrollmentEngine = {
       DB.communications.unshift({id:Util.uid('comm'), studentId:student.id, template:'Payment Receipt', subject:'Receipt for your TEAM EDU purchase', date:new Date().toISOString().slice(0,10), channel:'email'});
       // Step 9: audit log
       DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:'System (Checkout Demo)', action:'Enrollment created', entity:'Enrollment '+enrollment.id+' / Student '+student.id, details:'Course: '+course.title});
+    } else if(payment.status === 'failed'){
+      DB.notifications.unshift({id:Util.uid('nt'), studentId:student.id, title:'Payment failed', body:'We couldn\'t process your payment of '+Util.fmtMoney(info.amount)+' for '+course.title+'. Please try again or use a different card.', date:new Date().toISOString().slice(0,10), read:false, type:'billing'});
+      DB.communications.unshift({id:Util.uid('comm'), studentId:student.id, template:'Payment Failed', subject:'We couldn\'t process your payment', date:new Date().toISOString().slice(0,10), channel:'email'});
     }
     return {student:student, transaction:tx, enrollment:enrollment, payment:payment};
   }
@@ -3146,13 +3164,57 @@ Renderers.messages = function(){
 };
 Object.assign(Actions,{ markMsgRead: function(el){ const m = DB.messages.find(function(x){return x.id===el.getAttribute('data-msg');}); m.read=true; render(); } });
 
+const NOTIFICATION_CATEGORIES = [
+  {key:'enrollment', label:'Enrollment & Access', hint:'New enrollments, welcome messages, access expiring'},
+  {key:'schedule', label:'Classes & Events', hint:'Live session reminders and upcoming events'},
+  {key:'grading', label:'Assignments & Grades', hint:'Submission results and instructor feedback'},
+  {key:'certificate', label:'Certificates', hint:'Certificate issued or pending review'},
+  {key:'community', label:'Community Activity', hint:'Replies and announcements in your course communities'},
+  {key:'billing', label:'Payments & Billing', hint:'Payment receipts, failed payments, and refunds'},
+  {key:'communication', label:'General Updates', hint:'School announcements and other updates'}
+];
 Renderers.notifications = function(){
   const s = studentGuardOrRedirect(); if(!s) return renderNotFound();
-  const list = DB.notifications.filter(function(n){ return n.studentId===s.id; }).sort(function(a,b){ return new Date(b.date)-new Date(a.date); });
-  return '<div class="page-head"><h1>Notifications</h1>'+(list.some(function(n){return !n.read;}) ? '<button class="btn btn-ghost btn-sm" data-action="markAllRead">Mark all as read</button>' : '')+'</div>'+
+  const prefs = Q.notifPrefs(s.id);
+  const list = DB.notifications.filter(function(n){ return n.studentId===s.id && (prefs[n.type] ? prefs[n.type].inApp : true); }).sort(function(a,b){ return new Date(b.date)-new Date(a.date); });
+  const hiddenCount = DB.notifications.filter(function(n){ return n.studentId===s.id; }).length - list.length;
+  return '<div class="page-head"><h1>Notifications</h1><div class="flex gap-sm">'+
+      '<button class="btn btn-outline btn-sm" data-action="togglePrefsPanel" aria-expanded="'+(!!STATE.ui.notifPrefsOpen)+'">&#9881; Preferences</button>'+
+      (list.some(function(n){return !n.read;}) ? '<button class="btn btn-ghost btn-sm" data-action="markAllRead">Mark all as read</button>' : '')+
+    '</div></div>'+
+    (STATE.ui.notifPrefsOpen ? renderNotifPrefsPanel(s, prefs) : '')+
+    (hiddenCount>0 ? ('<p class="small muted">'+hiddenCount+' notification'+(hiddenCount===1?'':'s')+' hidden by your preferences. <button class="link-btn small" data-action="togglePrefsPanel">Review preferences</button>.</p>') : '')+
   (list.length ? list.map(function(n){ return '<div class="card" style="margin-bottom:10px;'+(n.read?'':'border-left:4px solid var(--gold);')+'"><div class="flex justify-between"><strong>'+n.title+'</strong><span class="small muted">'+Util.fmtDate(n.date)+'</span></div><p class="small mb-0">'+n.body+'</p></div>'; }).join('') : EmptyState('No notifications yet.'));
 };
-Object.assign(Actions,{ markAllRead: function(){ const s=Q.currentStudent(); DB.notifications.filter(function(n){return n.studentId===s.id;}).forEach(function(n){n.read=true;}); render(); Toast.show('success','Notifications cleared',''); } });
+function renderNotifPrefsPanel(s, prefs){
+  return '<form class="card mb-md" data-action="saveNotifPrefs">'+
+    '<h3>Notification Preferences</h3><p class="small muted">Choose which notifications appear in your Notifications list and which are emailed to you (demo — no real email is sent).</p>'+
+    '<div class="table-wrap"><table class="data-table"><thead><tr><th>Category</th><th>In-App</th><th>Email</th></tr></thead><tbody>'+
+    NOTIFICATION_CATEGORIES.map(function(c){
+      const p = prefs[c.key];
+      return '<tr><td><strong>'+c.label+'</strong><br><span class="small muted">'+c.hint+'</span></td>'+
+        '<td><input type="checkbox" name="inApp_'+c.key+'" '+(p.inApp?'checked':'')+' aria-label="'+c.label+' in-app notifications"></td>'+
+        '<td><input type="checkbox" name="email_'+c.key+'" '+(p.email?'checked':'')+' aria-label="'+c.label+' email notifications"></td></tr>';
+    }).join('')+
+    '</tbody></table></div>'+
+    '<div class="flex gap-sm mt-sm"><button class="btn btn-primary btn-sm" type="submit">Save Preferences</button><button class="btn btn-ghost btn-sm" type="button" data-action="togglePrefsPanel">Cancel</button></div>'+
+  '</form>';
+}
+Object.assign(Actions,{
+  markAllRead: function(){ const s=Q.currentStudent(); DB.notifications.filter(function(n){return n.studentId===s.id;}).forEach(function(n){n.read=true;}); render(); Toast.show('success','Notifications cleared',''); },
+  togglePrefsPanel: function(){ STATE.ui.notifPrefsOpen = !STATE.ui.notifPrefsOpen; render(); },
+  saveNotifPrefs: function(form){
+    const s = Q.currentStudent();
+    const saved = {};
+    NOTIFICATION_CATEGORIES.forEach(function(c){
+      saved[c.key] = { inApp: form.querySelector('[name="inApp_'+c.key+'"]').checked, email: form.querySelector('[name="email_'+c.key+'"]').checked };
+    });
+    DB.notificationPreferences[s.id] = saved;
+    STATE.ui.notifPrefsOpen = false;
+    Toast.show('success','Preferences saved','Your notification settings have been updated.');
+    render();
+  }
+});
 
 Renderers.certificates = function(){
   const s = studentGuardOrRedirect(); if(!s) return renderNotFound();
@@ -4226,6 +4288,7 @@ Object.assign(Actions,{
       if(en) en.status='withdrawn';
     }
     DB.communications.unshift({id:Util.uid('comm'), studentId:tx.studentId, template:'Refund Processed', subject:'Your refund has been processed', date:new Date().toISOString().slice(0,10), channel:'email'});
+    DB.notifications.unshift({id:Util.uid('nt'), studentId:tx.studentId, title:'Refund processed', body:Util.fmtMoney(amount)+' has been refunded for '+Q.courseName(tx.courseId)+'.', date:new Date().toISOString().slice(0,10), read:false, type:'billing'});
     DB.auditLog.unshift({id:Util.uid('aud'), date:new Date().toISOString(), actor:STATE.session.name, action:'Refund processed', entity:'Transaction '+tx.id, details:Util.fmtMoney(amount)});
     Modal.close(); Toast.show('success','Refund processed',''); render();
   }
