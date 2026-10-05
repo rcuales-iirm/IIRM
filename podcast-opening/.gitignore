@@ -1,0 +1,5 @@
+tools/work/
+tools/out/
+__pycache__/
+*.pyc
+Intro.mp4

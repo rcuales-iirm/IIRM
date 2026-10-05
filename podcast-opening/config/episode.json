@@ -1,0 +1,10 @@
+{
+  "episode_number": "[NUMBER]",
+  "episode_title": "[EPISODE TITLE]",
+  "guest": {
+    "name": "[GUEST NAME]",
+    "role_label": "Guest",
+    "role": "[Guest Title, Company]"
+  },
+  "topics": ["[TOPIC HEADING]"]
+}

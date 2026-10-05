@@ -1,0 +1,25 @@
+{
+  "colors": {
+    "navy": "#0B1A31",
+    "navy_deep": "#060F1F",
+    "amber": "#E59A2F",
+    "gold": "#D9AE55",
+    "gold_light": "#F1D28A",
+    "white": "#FFFFFF",
+    "warm_white": "#F4EEE4"
+  },
+  "fonts": {
+    "sans": "Montserrat",
+    "serif": "Cinzel"
+  },
+  "show": {
+    "title_lines": ["Build and", "Cover Your", "ASSets"],
+    "title_plain": "Build and Cover Your Assets",
+    "tagline": [["BUILD", "WEALTH."], ["PROTECT", "ASSETS."], ["ACHIEVE", "SUCCESS."]]
+  },
+  "host": {
+    "name": "BRIAN WOODS",
+    "role_label": "Host",
+    "role": "Real Estate, Insurance & Risk Management"
+  }
+}
