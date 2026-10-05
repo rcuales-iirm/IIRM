@@ -1,7 +1,7 @@
 """Audio for the opening: the original instrumental bed (no speech in Intro.mp4), gently
 time-stretched to the new edit, plus a few subtle synthesised transition sounds.
 
-usage: python3 audio.py Intro.mp4 out.wav [duration]
+usage: python3 audio.py Intro.mp4 out.wav [duration] [opening|intro10]
 """
 import subprocess
 import sys
@@ -12,9 +12,11 @@ import numpy as np
 SR = 48000
 src, out = sys.argv[1], sys.argv[2]
 DUR = float(sys.argv[3]) if len(sys.argv) > 3 else 15.4
+PRESET = sys.argv[4] if len(sys.argv) > 4 else "opening"
 
 # Where the music has fully faded, so the episode's first spoken words are clean.
 MUSIC_FADE = (14.35, 15.35)
+STRETCH = True
 # Transition sounds: (time, kind, gain dB)
 CUES = [
     (3.62, "whoosh", -24),   # title out -> stage
@@ -23,12 +25,23 @@ CUES = [
     (11.80, "whoosh", -28),  # lower-third -> episode card
     (14.60, "swell", -26),   # hand-off into the episode
 ]
+if PRESET == "intro10":
+    # the bed at its natural tempo, faded well before the episode's first words
+    MUSIC_FADE = (8.7, 9.8)
+    STRETCH = False
+    CUES = [
+        (2.62, "whoosh", -25),   # title -> tagline
+        (4.70, "whoosh", -26),   # cut to Brian
+        (5.95, "chime", -28),    # "With Brian Woods"
+        (9.15, "swell", -27),    # hand-off into the episode
+    ]
 
 
 def load_music():
     # 13.1 s bed stretched (pitch preserved) so its natural ending lands under the episode card
-    tempo = 13.1 / (MUSIC_FADE[1] - 0.15)
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", src, "-vn", "-af", f"rubberband=tempo={tempo:.4f}",
+    tempo = 13.1 / (MUSIC_FADE[1] - 0.15) if STRETCH else 1.0
+    af = f"rubberband=tempo={tempo:.4f}" if STRETCH else "anull"
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", src, "-vn", "-af", af,
                           "-ac", "2", "-ar", str(SR), "-f", "f32le", "-"], capture_output=True, check=True).stdout
     return np.frombuffer(raw, np.float32).reshape(-1, 2).copy()
 

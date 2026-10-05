@@ -400,6 +400,50 @@ class GFX:
                                   900)
         return L
 
+    # ------------------------------------------------------------ 10-second recurring intro
+    def intro10(self, t):
+        """0-3 s title on the city, 3-5 s tagline + gold line on the stage, 5-10 s Brian at his desk
+        with 'Build and Cover Your ASSets / With Brian Woods' beside him."""
+        L = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        show, host = self.brand["show"], self.brand["host"]
+
+        if t < 3.1:  # title: large, restrained mask reveal, thin underline
+            self.scrim(L, "left", out_cubic(prog(t, 0.0, 0.6)) * (1 - in_out_cubic(prog(t, 2.7, 0.4))),
+                       reach=0.62, strength=0.62)
+            x, size, pitch, b0 = 307, 228, 262, 820
+            colours = ["white", "white", "gold"]
+            for i, ln in enumerate(show["title_lines"]):
+                self.masked_line(L, [(ln, "Montserrat", 800, colours[i])], size, self.p(x),
+                                 self.p(b0 + pitch * i), t, 0.25 + 0.14 * i, 0.8, 2.6 + 0.06 * i, 0.4)
+            widest = max(self.text_width(((ln, "Montserrat", 800, "white"),), size) for ln in show["title_lines"])
+            self.line_draw(L, self.p(x), self.p(b0 + pitch * 2 + 92), widest / self.k, 9, t, 0.95, 0.8, 2.55, 0.4)
+
+        if 2.9 < t < 5.05:  # tagline: subtle fades, then a thin gold line draws out from the centre
+            cx, size = 1790, 116
+            self.scrim(L, "ellipse", out_cubic(prog(t, 2.95, 0.5)) * (1 - in_out_cubic(prog(t, 4.6, 0.35))),
+                       cx=cx / DW, cy=0.36, rx=0.30, ry=0.30, strength=0.42)
+            for i, (a, b) in enumerate(show["tagline"]):
+                runs = [(a + " ", "Montserrat", 700, "white"), (b, "Montserrat", 700, "gold")]
+                self.masked_line(L, runs, size, self.p(cx), self.p(640 + 175 * i), t, 3.15 + 0.32 * i, 0.65,
+                                 4.62 + 0.04 * i, 0.32, tracking=0.08, align="center", rise=self.p(45))
+            self.line_draw(L, self.p(cx - 420), self.p(640 + 175 * 2 + 85), 840, 6, t, 3.95, 0.55, 4.6, 0.3,
+                           origin="center")
+
+        if t > 5.3:  # final composition beside Brian
+            X, Y = self.p(2330), self.p(560)
+            t0, t_out = 5.55, 9.45
+            self.scrim(L, "ellipse", out_cubic(prog(t, 5.4, 0.6)) * (1 - in_out_cubic(prog(t, 9.45, 0.45))),
+                       cx=0.77, cy=0.40, rx=0.27, ry=0.27, strength=0.32)
+            colours = ["white", "white", "gold"]
+            for i, ln in enumerate(show["title_lines"]):
+                self.masked_line(L, [(ln, "Montserrat", 800, colours[i])], 132, X, Y + self.p(150 * i), t,
+                                 t0 + 0.13 * i, 0.8, t_out + 0.05 * i, 0.45)
+            self.line_draw(L, X, Y + self.p(150 * 2 + 78), 300, 7, t, t0 + 0.55, 0.55, t_out + 0.1, 0.35)
+            name = host["name"].title()
+            self.masked_line(L, [("With ", "Cinzel", 600, "gold"), (name, "Cinzel", 600, "warm_white")], 84, X,
+                             Y + self.p(150 * 2 + 205), t, t0 + 0.75, 0.75, t_out + 0.15, 0.45, tracking=0.02)
+        return L
+
     # ------------------------------------------------------------ outro
     def outro(self, t, background=True):
         L = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))

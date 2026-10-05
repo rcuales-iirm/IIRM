@@ -49,6 +49,7 @@ _dis = None
 def interp(a, b, alpha, scale=0.5):
     """Optical-flow interpolated frame between a and b at fraction alpha."""
     global _dis
+    alpha = float(alpha)
     if alpha <= 1e-3:
         return a
     if alpha >= 1 - 1e-3:

@@ -6,6 +6,27 @@ This folder holds a finished opening for Brian Woods's podcast, made from `Intro
 
 ## Deliverables
 
+### 10-second recurring intro (recommended for every episode)
+
+| File | What it is |
+|---|---|
+| `renders/bcya_intro_10s_4k.mp4` | **The recurring intro.** 3840×2160, 30 fps, H.264 + AAC, 10.0 s |
+| `renders/bcya_intro_10s_1080p.mp4` | The same intro at 1920×1080 |
+| `renders/bcya_intro_10s_graphics_alpha_1080p.mov` | Its graphics alone, with alpha |
+
+| Time (s) | Footage | Graphics |
+|---|---|---|
+| 0 – 3 | City aerial (old title removed) | **Build and / Cover Your / ASSets**, large, line-by-line mask reveal and a thin gold underline |
+| 3 – 5 | Stage (old sign removed), slow push | **BUILD WEALTH. / PROTECT ASSETS. / ACHIEVE SUCCESS.** fade up in turn, then a thin gold line draws out from the centre |
+| 5 – 10 | Hard cut to Brian already seated at his podcast desk. The notebook is removed, his hands rest on the bare desk, and no light trails cross him. A gentle 5 % push-in | **Build and Cover Your ASSets**, a gold line, **With Brian Woods** on the wall beside him (5.6 s), held until 9.45 s |
+| 9.5 – 10 | — | Hand-off: dissolve into the episode with `render.py --intro10 --episode …`, or a 0.5 s cross-dissolve in your editor |
+
+Audio: the original instrumental bed at its natural tempo, fading out from 8.7 s to 9.8 s, plus two soft transitions, one chime and a low swell. There is no dialogue or voiceover.
+
+**How the desk shot was made:** only about 0.3 s of the source shows Brian settled, with no light trails and no notebook handling. Those frames, with the notebook painted out (`tools/clean_desk.py`), play gently forward and back on a 3.4 s breathing-length cycle under the push-in, so he stays relaxed and natural without any visible loop. A longer real take of Brian sitting would allow more natural movement, such as visible blinks; for that, swap in new footage and keep the same graphics.
+
+### Longer versions
+
 | File | What it is |
 |---|---|
 | `renders/bcya_intro_general_4k.mp4` | **General intro template:** one file for every episode. Same opening, but it ends on a show sign-off (THE PODCAST / Build and Cover Your ASSets / tagline) instead of an episode card |
@@ -64,6 +85,12 @@ python3 clean_stage.py  ../Intro.mp4 work/clean_stage.mkv
 python3 clean_studio.py ../Intro.mp4 work/clean_studio.mkv
 python3 build_base.py work ../Intro.mp4 work/base_4k.mkv
 python3 audio.py ../Intro.mp4 work/opening_audio.wav 15.4
+
+# 10-second recurring intro
+python3 clean_desk.py work/clean_studio.mkv work/clean_desk.mkv 36
+python3 build_intro10.py work work/intro10_base.mkv
+python3 audio.py ../Intro.mp4 work/intro10_audio.wav 10 intro10
+python3 render.py --base work/intro10_base.mkv --audio work/intro10_audio.wav --out out/bcya_intro_10s --intro10 [--episode ep.mp4]
 
 # general intro (any episode): about 5 min
 python3 render.py --base work/base_4k.mkv --audio work/opening_audio.wav --out out/bcya_intro_general --general

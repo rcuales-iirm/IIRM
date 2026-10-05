@@ -26,6 +26,7 @@ ap.add_argument("--title")
 ap.add_argument("--episode")
 ap.add_argument("--overlay", action="store_true")
 ap.add_argument("--general", action="store_true", help="general intro: show lockup instead of episode card")
+ap.add_argument("--intro10", action="store_true", help="10-second recurring intro layout (use the intro10 base)")
 args = ap.parse_args()
 
 meta = json.load(open(args.base + ".json"))
@@ -61,14 +62,14 @@ for k in range(n):
     if not ok:
         break
     t = k / fps
-    L = np.asarray(g.opening(t, ending))
+    L = np.asarray(g.intro10(t) if args.intro10 else g.opening(t, ending))
     a = L[..., 3:4].astype(np.float32) / 255
     if a.max() > 0:
         rgb = L[..., 2::-1].astype(np.float32)  # RGBA -> BGR
         f = (f.astype(np.float32) * (1 - a) + rgb * a + 0.5).astype(np.uint8)
     enc.stdin.write(f.tobytes())
     if ovl:
-        ovl.stdin.write(np.asarray(g2.opening(t, ending)).tobytes())
+        ovl.stdin.write(np.asarray(g2.intro10(t) if args.intro10 else g2.opening(t, ending)).tobytes())
     if k % 60 == 0:
         print("render", k, "/", n, flush=True)
 enc.stdin.close()
