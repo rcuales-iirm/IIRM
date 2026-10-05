@@ -112,3 +112,25 @@ def laplace_fill(img, hole, wx=1.0, wy=1.0):
     for c in range(img.shape[2]):
         out[ys, xs, c] = spsolve(A, b[:, c])
     return out
+
+
+def smooth_affines(As, keep=None, degree=3, t=None, sigma=None):
+    """Fit each affine parameter with a low-order polynomial over time.
+
+    Per-frame estimates are noisy; the real camera move is smooth, so smoothing the path
+    removes jitter in the patched area. keep marks frames used for the fit (e.g. skip
+    duplicated 24p->30p frames, which would otherwise bias it). t is the time axis (defaults to
+    frame index; pass the unique-frame index so duplicates don't count as camera time).
+    """
+    As = np.array(As, np.float64).reshape(len(As), 6)
+    t = np.arange(len(As), dtype=np.float64) if t is None else np.asarray(t, np.float64)
+    m = np.ones(len(As), bool) if keep is None else np.asarray(keep, bool)
+    out = np.empty_like(As)
+    for j in range(6):
+        if sigma is None:   # global polynomial: for steady moves (drone push)
+            c = np.polyfit(t[m], As[m, j], degree)
+            out[:, j] = np.polyval(c, t)
+        else:               # local Gaussian: follows real accelerations, removes frame-to-frame noise
+            w = np.exp(-0.5 * ((t[:, None] - t[m][None, :]) / sigma) ** 2)
+            out[:, j] = (w * As[m, j][None, :]).sum(1) / w.sum(1)
+    return out.reshape(-1, 2, 3).astype(np.float32)

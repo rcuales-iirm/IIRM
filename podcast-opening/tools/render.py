@@ -1,9 +1,10 @@
 """Composite the graphics onto the cleaned base plate and encode the finished opening.
 
   python3 render.py --base work/base_4k.mkv --audio work/opening_audio.wav --out out/opening \
-      [--number 12 --title "Protecting What You Build"] [--episode episode.mp4] [--overlay]
+      [--number 12 --title "Protecting What You Build" | --general] [--episode episode.mp4] [--overlay]
 
-Writes <out>_4k.mp4 and <out>_1080p.mp4 (H.264 + AAC). --episode dissolves into the episode
+Writes <out>_4k.mp4 and <out>_1080p.mp4 (H.264 + AAC). --general ends on the show lockup
+instead of the episode card, so one file serves every episode. --episode dissolves into the episode
 footage (its own audio is kept; the music has already faded out). --overlay also writes the
 graphics alone as a 1080p QuickTime Animation file with alpha for use in an NLE.
 """
@@ -24,6 +25,7 @@ ap.add_argument("--number")
 ap.add_argument("--title")
 ap.add_argument("--episode")
 ap.add_argument("--overlay", action="store_true")
+ap.add_argument("--general", action="store_true", help="general intro: show lockup instead of episode card")
 args = ap.parse_args()
 
 meta = json.load(open(args.base + ".json"))
@@ -34,6 +36,7 @@ if args.number:
 if args.title:
     ep["episode_title"] = args.title
 
+ending = "general" if args.general else "episode"
 cap = cv2.VideoCapture(args.base)
 W, H = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 g = GFX(W, H, episode=ep)
@@ -58,14 +61,14 @@ for k in range(n):
     if not ok:
         break
     t = k / fps
-    L = np.asarray(g.opening(t))
+    L = np.asarray(g.opening(t, ending))
     a = L[..., 3:4].astype(np.float32) / 255
     if a.max() > 0:
         rgb = L[..., 2::-1].astype(np.float32)  # RGBA -> BGR
         f = (f.astype(np.float32) * (1 - a) + rgb * a + 0.5).astype(np.uint8)
     enc.stdin.write(f.tobytes())
     if ovl:
-        ovl.stdin.write(np.asarray(g2.opening(t)).tobytes())
+        ovl.stdin.write(np.asarray(g2.opening(t, ending)).tobytes())
     if k % 60 == 0:
         print("render", k, "/", n, flush=True)
 enc.stdin.close()

@@ -335,7 +335,24 @@ class GFX:
                          0.7, t_out)
 
     # ------------------------------------------------------------ the opening
-    def opening(self, t):
+    def show_lockup(self, layer, t, t0, t_out, x, y_top):
+        """General-intro ending: echoes the opening title as a sign-off, no episode details."""
+        X, Y = self.p(x), self.p(y_top)
+        show = self.brand["show"]
+        self.masked_line(layer, [("THE PODCAST", "Montserrat", 600, "gold")], 54, X, Y, t, t0, 0.6, t_out + 0.15,
+                         tracking=0.3)
+        self.line_draw(layer, X, Y + self.p(52), 260, 7, t, t0 + 0.15, 0.55, t_out + 0.25, 0.35)
+        colours = ["white", "white", "gold"]
+        for i, ln in enumerate(show["title_lines"]):
+            self.masked_line(layer, [(ln, "Montserrat", 800, colours[i])], 122, X, Y + self.p(210 + 140 * i), t,
+                             t0 + 0.3 + 0.12 * i, 0.75, t_out + 0.06 * i)
+        runs = [(" ".join(a + " " + b for a, b in show["tagline"]), "Montserrat", 600, "warm_white")]
+        size = self.fit_runs(runs, 40, 1220, 0.12, 30)
+        self.masked_line(layer, runs, size, X, Y + self.p(210 + 140 * 2 + 120), t, t0 + 0.75, 0.7, t_out,
+                         tracking=0.12)
+
+    def opening(self, t, ending="episode"):
+        """ending: 'episode' (EPISODE n / title card) or 'general' (show lockup, any episode)."""
         L = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
         show, host = self.brand["show"], self.brand["host"]
 
@@ -372,7 +389,11 @@ class GFX:
         if t > 11.95:
             self.scrim(L, "ellipse", out_cubic(prog(t, 12.0, 0.5)) * (1 - in_out_cubic(prog(t, 14.75, 0.5))),
                        cx=0.78, cy=0.55, rx=0.26, ry=0.24, strength=0.35)
-            self.episode_card(L, t, 12.05, 14.75, self.ep["episode_number"], self.ep["episode_title"], 2300, 900)
+            if ending == "general":
+                self.show_lockup(L, t, 12.05, 14.75, 2300, 760)
+            else:
+                self.episode_card(L, t, 12.05, 14.75, self.ep["episode_number"], self.ep["episode_title"], 2300,
+                                  900)
         return L
 
     # ------------------------------------------------------------ outro

@@ -8,7 +8,10 @@ This folder holds a finished opening for Brian Woods's podcast, made from `Intro
 
 | File | What it is |
 |---|---|
-| `renders/bcya_opening_4k.mp4` | **The finished opening.** 3840×2160, 30 fps, H.264 + AAC, 15.4 s, using the template card `EPISODE [NUMBER]` / `[EPISODE TITLE]` |
+| `renders/bcya_intro_general_4k.mp4` | **General intro template:** one file for every episode. Same opening, but it ends on a show sign-off (THE PODCAST / Build and Cover Your ASSets / tagline) instead of an episode card |
+| `renders/bcya_intro_general_1080p.mp4` | The general intro at 1920×1080 |
+| `renders/bcya_intro_general_graphics_alpha_1080p.mov` | The general intro's graphics on their own, with alpha |
+| `renders/bcya_opening_4k.mp4` | **Per-episode version.** 3840×2160, 30 fps, H.264 + AAC, 15.4 s, using the template card `EPISODE [NUMBER]` / `[EPISODE TITLE]` |
 | `renders/bcya_opening_1080p.mp4` | The same opening at 1920×1080 |
 | `renders/bcya_opening_sample_episode_1080p.mp4` | A filled-in example ("Episode 1 / Protecting What You Build") showing how a real card reads |
 | `renders/bcya_clean_plate_4k.mp4` | The cleaned, retimed footage with the soundtrack and **no** graphics, for building the opening in an NLE |
@@ -29,7 +32,7 @@ All alpha files are 1080p QuickTime Animation (`.mov`, lossless 8-bit alpha). Pr
 | 4.0 – 8.0 | Stage, with the backdrop sign removed and a slow 4 % push-in | A microphone ring appears at 4.2 s. **BUILD WEALTH.**, **PROTECT ASSETS.** and **ACHIEVE SUCCESS.** rise in at 4.45, 5.05 and 5.65 s. The microphone pulses once at 6.45 s (one ring, no flashing). Everything clears by 7.95 s |
 | 8.0 – 9.7 | Brian in the office, where the original light trails begin | — |
 | 9.6 – 12.0 | Brian at the studio desk (a two-frame cut from the office, since a long dissolve between two angles of Brian would double-expose him), with the burned-in name removed and the light trails kept | Lower-third on the empty wall to Brian's right, clear of his face, hands and microphone. A gold line draws, then **BRIAN WOODS**, then **Host \| Real Estate, Insurance & Risk Management**. The name stays readable from about 10.2 s to 11.9 s |
-| 12.0 – 15.4 | The same studio shot, easing into a near-hold | Episode card: **EPISODE [NUMBER]**, a gold line, then the title in Cinzel (up to 3 lines, wrapped and shrunk to fit automatically). It is fully readable from 12.7 s to 14.75 s and then exits. This is where the opening hands off to the episode footage |
+| 12.0 – 15.4 | The same studio shot, easing into a near-hold | **General intro:** "THE PODCAST", a gold line, the title echoed from the opening ("ASSets" in gold) and the tagline in small caps. **Per-episode version:** episode card: **EPISODE [NUMBER]**, a gold line, then the title in Cinzel (up to 3 lines, wrapped and shrunk to fit automatically). It is fully readable from 12.7 s to 14.75 s and then exits. This is where the opening hands off to the episode footage |
 
 The episode section was extended from the requested 2 s to about 3.4 s so the title can be read. The other section boundaries are 0.3 s cross-dissolves.
 
@@ -43,7 +46,7 @@ The episode section was extended from the requested 2 s to about 3.4 s so the ti
 
 `Intro.mp4` already had titles burned into almost every shot. The rule was to "replace or cleanly transition, never cover", so:
 
-- **City shot:** the old "Build and Cover Your ASSets" was removed. The pre-title frame was tracked onto every later frame (`tools/clean_city.py`).
+- **City shot:** the old "Build and Cover Your ASSets" was removed. The pre-title frame was tracked onto every later frame (`tools/clean_city.py`). The tracking path is smoothed over time, and repeated 24p frames are kept identical. Without this the patched area visibly shook against the skyline: per-frame estimates wobbled by up to ~12 px.
 - **Stage shot:** the "BUILD WEALTH. PROTECT ASSETS. ACHIEVE SUCCESS" sign and the PODCAST badge are part of the backdrop and have no clean frame. The backdrop was rebuilt with a harmonic fill (`tools/clean_stage.py`), and the new tagline replaces the old one in the same place.
 - **Studio shot:** the gold "BRIAN WOODS" title was removed. A rebuilt wall plate was tracked separately from the drifting name, and the light trails were added back (`tools/clean_studio.py`). Where a trail crosses the old letters it has been reconstructed, so it can look slightly smeared in a 4K freeze-frame. At speed it reads as normal motion blur.
 - **Dropped shots:** the "Turning Insights Into Opportunities" aerial and the "WELCOME" blueprint shot are not used. The brief assigns 0–4 s to the city and 4–8 s to the stage, and both dropped shots had burned-in titles that would have competed with the new ones.
@@ -62,6 +65,9 @@ python3 clean_stage.py  ../Intro.mp4 work/clean_stage.mkv
 python3 clean_studio.py ../Intro.mp4 work/clean_studio.mkv
 python3 build_base.py work ../Intro.mp4 work/base_4k.mkv
 python3 audio.py ../Intro.mp4 work/opening_audio.wav 15.4
+
+# general intro (any episode): about 5 min
+python3 render.py --base work/base_4k.mkv --audio work/opening_audio.wav --out out/bcya_intro_general --general
 
 # per episode: about 5 min. --episode appends the episode with a 0.5 s dissolve
 python3 render.py --base work/base_4k.mkv --audio work/opening_audio.wav --out out/ep12 \
