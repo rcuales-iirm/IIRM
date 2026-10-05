@@ -25,6 +25,21 @@ Audio: the original instrumental bed at its natural tempo, fading out from 8.7 s
 
 **How the desk shot was made:** only about 0.3 s of the source shows Brian settled, with no light trails and no notebook handling. Those frames, with the notebook painted out (`tools/clean_desk.py`), play gently forward and back on a 3.4 s breathing-length cycle under the push-in, so he stays relaxed and natural without any visible loop. A longer real take of Brian sitting would allow more natural movement, such as visible blinks; for that, swap in new footage and keep the same graphics.
 
+### End screen: "Thank you / Subscribe" (replaces the red Canva template)
+
+| File | What it is |
+|---|---|
+| `renders/bcya_endscreen_subscribe_4k.mp4` | 9.4 s, 3840×2160, with sound |
+| `renders/bcya_endscreen_subscribe_1080p.mp4` | The same at 1920×1080 |
+
+It uses the city footage in a deep navy grade as a quiet background. Brian's portrait sits in a circle with a gold ring that draws on. **Thank you / for listening to Build and Cover Your ASSets** appears in the intro's fonts. A large subscribe card follows: a cursor clicks **SUBSCRIBE** (it becomes **SUBSCRIBED**), then the bell, which swings once. The piece fades to navy at the end. Audio is the closing bars of the intro's music, a chime in the same key and two soft clicks.
+
+The portrait (`assets/brian_portrait.png`) was cut out of the Canva video with clean edges by `tools/extract_portrait.py`. Rebuild with:
+
+```bash
+python3 endscreen.py work ../assets/brian_portrait.png out/bcya_endscreen_subscribe ../Intro.mp4
+```
+
 ### Longer versions
 
 | File | What it is |
