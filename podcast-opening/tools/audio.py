@@ -19,8 +19,7 @@ MUSIC_FADE = (14.35, 15.35)
 CUES = [
     (3.62, "whoosh", -24),   # title out -> stage
     (6.45, "chime", -27),    # single microphone pulse
-    (7.62, "whoosh", -25),   # stage -> studio
-    (9.30, "whoosh", -27),   # into Brian's studio shot
+    (7.62, "whoosh", -25),   # stage -> Brian at the desk
     (11.80, "whoosh", -28),  # lower-third -> episode card
     (14.60, "swell", -26),   # hand-off into the episode
 ]

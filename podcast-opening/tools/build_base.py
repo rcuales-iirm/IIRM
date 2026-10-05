@@ -3,9 +3,9 @@
 Edit decisions (output seconds):
   0.00 - 4.15  City aerial   (cleaned src 0-57, slowed ~0.48x)       -> show title
   3.85 - 8.15  Stage         (cleaned src 190-232, slowed, slow push) -> tagline
-  7.85 - 9.62  Studio/office (src 250-302, ~0.9x, light trails start)
-  9.55 - END   Studio/front  (cleaned src 352-392, eased slow-down)   -> host lower-third, episode card
-Overlaps are 0.3 s cross-dissolves, except the office -> front angle change (near-cut). 24p content inside the 30p file is de-duplicated first and
+  7.85 - END   Studio desk   (cleaned src 352-392 at ~0.45x, then a steady hold with a slow push)
+                                                                     -> host lower-third, episode card
+Overlaps are 0.3 s cross-dissolves. 24p content inside the 30p file is de-duplicated first and
 in-between frames are rebuilt with optical flow, so slow sections stay smooth.
 """
 import sys
@@ -39,22 +39,23 @@ def load(path, a=None, b=None):
 
 city = unique(load(f"{work}/clean_city.mkv"))
 stage = unique(load(f"{work}/clean_stage.mkv"))
-office = unique(read_frames(src, 250, 302))
 front = unique(load(f"{work}/clean_studio.mkv", 7, 47))
-print("unique frames", len(city), len(stage), len(office), len(front), flush=True)
+print("unique frames", len(city), len(stage), len(front), flush=True)
 
 
-def ease_front(u):
-    return 0.8 * (1 - (1 - u) ** 3) + 0.2 * u
+def ease_front(u, play=0.42):
+    """Play the desk shot at ~0.45x (light trails included), decelerate smoothly, then hold the
+    last frame. A true hold can't wobble the way ultra-slow optical-flow frames can."""
+    x = min(u / play, 1.0)
+    return 1 - (1 - x) ** 2
 
 
 SHOTS = [
     # frames, start, end, position(u) in [0,1], push-in (scale_from, scale_to, cx, cy)
     (city, 0.00, 4.15, lambda u: u, None),
     (stage, 3.85, 8.15, lambda u: u, (1.0, 1.04, 0.55, 0.40)),
-    (office, 7.85, 9.62, lambda u: u, None),
-    # angle change on Brian: a 2-frame blend (a long dissolve would double-expose him)
-    (front, 9.55, END, ease_front, (1.0, 1.025, 0.45, 0.40)),
+    # stage dissolves straight into Brian at his podcast desk (office/notebook shot not used)
+    (front, 7.85, END, ease_front, (1.0, 1.035, 0.45, 0.40)),
 ]
 
 

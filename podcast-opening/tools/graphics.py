@@ -298,6 +298,10 @@ class GFX:
         name_size = self.fit_runs([(name, "Cinzel", 700, "white")], 128, max_w)
         self.masked_line(layer, [(name, "Cinzel", 700, "white")], name_size, X, Y + self.p(150), t, t0 + 0.12,
                          0.7, t_out + 0.05, tracking=0.02)
+        if not role:  # label only, e.g. "HOST"
+            self.masked_line(layer, [(label.upper(), "Montserrat", 600, "gold")], 50, X, Y + self.p(240), t,
+                             t0 + 0.28, 0.7, t_out, tracking=0.3)
+            return
         runs = [(label, "Montserrat", 600, "gold"), ("  |  ", "Montserrat", 500, "gold"),
                 (role, "Montserrat", 500, "warm_white")]
         rs = self.fit_runs(runs, 50, max_w, 0.02, 40)
@@ -380,10 +384,10 @@ class GFX:
                                  7.5 + 0.06 * i, 0.45, tracking=0.08, align="center", rise=self.p(60))
 
         # host lower-third on the studio wall, right of Brian (clear of face, hands and mic)
-        if 9.7 < t < 12.3:
-            self.scrim(L, "ellipse", out_cubic(prog(t, 9.75, 0.5)) * (1 - in_out_cubic(prog(t, 11.8, 0.4))),
+        if 8.4 < t < 12.3:
+            self.scrim(L, "ellipse", out_cubic(prog(t, 8.45, 0.5)) * (1 - in_out_cubic(prog(t, 11.8, 0.4))),
                        cx=0.78, cy=0.62, rx=0.25, ry=0.16, strength=0.35)
-            self.lower_third(L, t, 9.85, 11.75, host["name"], host["role_label"], host["role"], 2300, 1235)
+            self.lower_third(L, t, 8.6, 11.75, host["name"], host["role_label"], host["role"], 2300, 1235)
 
         # episode card, then hand-off to the episode
         if t > 11.95:

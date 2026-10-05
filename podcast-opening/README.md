@@ -30,16 +30,15 @@ All alpha files are 1080p QuickTime Animation (`.mov`, lossless 8-bit alpha). Pr
 |---|---|---|
 | 0.0 – 4.0 | City aerial, slowed to about 0.5× and cleaned of its old title | A navy scrim fades up on the left. **Build and / Cover Your / ASSets** reveals line by line behind a mask (0.15 s stagger), with "ASSets" in gold. A thin gold underline draws across at 1.15 s. Everything exits upward by 3.9 s |
 | 4.0 – 8.0 | Stage, with the backdrop sign removed and a slow 4 % push-in | A microphone ring appears at 4.2 s. **BUILD WEALTH.**, **PROTECT ASSETS.** and **ACHIEVE SUCCESS.** rise in at 4.45, 5.05 and 5.65 s. The microphone pulses once at 6.45 s (one ring, no flashing). Everything clears by 7.95 s |
-| 8.0 – 9.7 | Brian in the office, where the original light trails begin | — |
-| 9.6 – 12.0 | Brian at the studio desk (a two-frame cut from the office, since a long dissolve between two angles of Brian would double-expose him), with the burned-in name removed and the light trails kept | Lower-third on the empty wall to Brian's right, clear of his face, hands and microphone. A gold line draws, then **BRIAN WOODS**, then **Host \| Real Estate, Insurance & Risk Management**. The name stays readable from about 10.2 s to 11.9 s |
-| 12.0 – 15.4 | The same studio shot, easing into a near-hold | **General intro:** "THE PODCAST", a gold line, the title echoed from the opening ("ASSets" in gold) and the tagline in small caps. **Per-episode version:** episode card: **EPISODE [NUMBER]**, a gold line, then the title in Cinzel (up to 3 lines, wrapped and shrunk to fit automatically). It is fully readable from 12.7 s to 14.75 s and then exits. This is where the opening hands off to the episode footage |
+| 8.0 – 12.0 | Brian at his podcast desk (the stage dissolves straight into it). The old burned-in name is removed and the original light trails are kept | Lower-third on the empty wall to Brian's right, clear of his face, hands and microphone: a gold line draws, then **BRIAN WOODS**, then **HOST**. In at 8.6 s, readable until about 11.9 s |
+| 12.0 – 15.4 | The same desk shot, settling into a steady hold with a slow 3.5 % push-in | **General intro:** "THE PODCAST", a gold line, the title echoed from the opening ("ASSets" in gold) and the tagline in small caps. **Per-episode version:** episode card: **EPISODE [NUMBER]**, a gold line, then the title in Cinzel (up to 3 lines, wrapped and shrunk to fit automatically). It is fully readable from 12.7 s to 14.75 s and then exits. This is where the opening hands off to the episode footage |
 
 The episode section was extended from the requested 2 s to about 3.4 s so the title can be read. The other section boundaries are 0.3 s cross-dissolves.
 
 ### Audio
 
 - `Intro.mp4` has **no speech**. Its soundtrack is an instrumental bed in F / B-flat. That bed is kept as the theme and stretched 15 % (pitch preserved) to fit the new edit.
-- Four soft filtered "whoosh" transitions, one chime in F for the microphone pulse, and a low swell at the hand-off are all synthesised in `tools/audio.py`.
+- Three soft filtered "whoosh" transitions, one chime in F for the microphone pulse, and a low swell at the hand-off are all synthesised in `tools/audio.py`.
 - The music fades out between **14.35 s and 15.35 s**, so it is gone before Brian's first word in the episode. The opening measures −19.6 LUFS integrated with a −4.7 dBFS peak. Normalise to your platform target (for example −16 LUFS for podcasts and YouTube) in the final episode mix.
 
 ## Changes made to the original footage
@@ -49,8 +48,8 @@ The episode section was extended from the requested 2 s to about 3.4 s so the ti
 - **City shot:** the old "Build and Cover Your ASSets" was removed. The pre-title frame was tracked onto every later frame (`tools/clean_city.py`). The tracking path is smoothed over time, and repeated 24p frames are kept identical. Without this the patched area visibly shook against the skyline: per-frame estimates wobbled by up to ~12 px.
 - **Stage shot:** the "BUILD WEALTH. PROTECT ASSETS. ACHIEVE SUCCESS" sign and the PODCAST badge are part of the backdrop and have no clean frame. The backdrop was rebuilt with a harmonic fill (`tools/clean_stage.py`), and the new tagline replaces the old one in the same place.
 - **Studio shot:** the gold "BRIAN WOODS" title was removed. A rebuilt wall plate was tracked separately from the drifting name, and the light trails were added back (`tools/clean_studio.py`). Where a trail crosses the old letters it has been reconstructed, so it can look slightly smeared in a 4K freeze-frame. At speed it reads as normal motion blur.
-- **Dropped shots:** the "Turning Insights Into Opportunities" aerial and the "WELCOME" blueprint shot are not used. The brief assigns 0–4 s to the city and 4–8 s to the stage, and both dropped shots had burned-in titles that would have competed with the new ones.
-- Brian's appearance, the studio and the microphone placement are unchanged: no reframing, no beauty work and no added effects on his face. The only motion added is a 2.5 % digital push on the final studio shot.
+- **Dropped shots:** the "Turning Insights Into Opportunities" aerial and the "WELCOME" blueprint shot are not used. The brief assigns 0–4 s to the city and 4–8 s to the stage, and both dropped shots had burned-in titles that would have competed with the new ones. The office shot of Brian opening his notebook is also cut, so the studio section is only him sitting at his podcast desk.
+- Brian's appearance, the studio and the microphone placement are unchanged: no reframing, no beauty work and no added effects on his face. The only motion added is a 3.5 % digital push on the desk shot. That shot plays at about 0.45× and then holds on a still frame, which keeps it steady: ultra-slow optical-flow frames can wobble.
 
 ## Making an episode
 

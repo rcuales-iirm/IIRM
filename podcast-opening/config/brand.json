@@ -13,13 +13,30 @@
     "serif": "Cinzel"
   },
   "show": {
-    "title_lines": ["Build and", "Cover Your", "ASSets"],
+    "title_lines": [
+      "Build and",
+      "Cover Your",
+      "ASSets"
+    ],
     "title_plain": "Build and Cover Your Assets",
-    "tagline": [["BUILD", "WEALTH."], ["PROTECT", "ASSETS."], ["ACHIEVE", "SUCCESS."]]
+    "tagline": [
+      [
+        "BUILD",
+        "WEALTH."
+      ],
+      [
+        "PROTECT",
+        "ASSETS."
+      ],
+      [
+        "ACHIEVE",
+        "SUCCESS."
+      ]
+    ]
   },
   "host": {
     "name": "BRIAN WOODS",
     "role_label": "Host",
-    "role": "Real Estate, Insurance & Risk Management"
+    "role": ""
   }
 }
